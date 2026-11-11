@@ -203,16 +203,17 @@ export default class Aquarium extends View {
     };
 
     const toggle = (id, label, checked, change) => Switch.new(id).checked(checked).on_change(change)
-      .w_full().h(32).px(4).flex().items_center().justify_between().rounded(4)
+      .w_full().h(32).flex_none().px(4).flex().items_center().justify_between().rounded(4)
       .border(1).border_color("#00000000").focus(s => s.border_color(t.accent)).hover(s => s.bg(t.hover))
       .accessibility_label(label).child(label)
       .child(div().relative().w(30).h(16).rounded_full().bg(checked ? t.accent : t.border)
         .child(div().absolute().top(2).left(checked ? 16 : 2).size(12).rounded_full().bg(t.foreground)));
-    const choices = (id, label, value, items, change) => v_flex().gap(4)
+    // Keep rows at their readable size: the bounded surface scrolls instead of shrinking them.
+    const choices = (id, label, value, items, change) => v_flex().flex_none().gap(4)
       .child(div().text_size(11).text_color(t.muted).child(label))
-      .child(RadioGroup.new(id).accessibility_label(label).flex().flex_col().gap(2)
+      .child(RadioGroup.new(id).accessibility_label(label).axis("vertical").flex().flex_col().gap(2)
         .children(items.map(([key, text]) => Radio.new(`${id}-${key}`).checked(value === key).on_change(() => change(key))
-          .w_full().h(28).px(4).flex().gap(8).items_center().rounded(4)
+          .w_full().h(28).flex_none().px(4).flex().gap(8).items_center().rounded(4)
           .border(1).border_color("#00000000").focus(s => s.border_color(t.accent)).hover(s => s.bg(t.hover))
           .accessibility_label(text)
           .child(div().size(14).rounded_full().border(1).border_color(value === key ? t.accent : t.muted)
