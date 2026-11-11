@@ -9,11 +9,34 @@ Authority inspected: installed `~/.config/herdr-app/gpui-kit.d.ts`, generated fo
 - Lines 1264–1273 expose `hover`, `active`, `focus`; the shared prototype does **not** guarantee component suitability (header, lines 27–28).
 - `track_focus` contract, lines 1010–1024: Switch and Link own private handles; supplied handles are reported and dropped. Radio and Button accept handles.
 - `FocusHandle`, lines 20406–20412, exposes only `focus`, `is_focused`, `release`. There is no descendant-focus query or focus subscription in this contract; no `focus_within` builder is declared.
-- Switch contract (20699–20700): controlled, **no styling**. The issue #4 coordinator's prior native materialization reported that Switch state styles are ignored. This follow-up does not claim a fresh native reproduction or actual keyboard observation.
+- Switch contract (20699–20700): controlled, **no styling**. Fresh direct-root native checks below confirm that Switch state styles are ignored and its supplied focus handle is not wired. This is materialization evidence, not actual keyboard observation.
 - Radio/RadioGroup (20938–20964): controlled selection; group axis is semantic, not keyboard navigation. Popover (21058–21073) owns opening, dismissal and focus transfer/return; preserve those mechanisms.
 - Shipped `mods/new-menu/main.js:25–63` uses an owned handle on a plain wrapper and explicit shortcut handling. It does not demonstrate styling focus of a private-handle native Switch. The shipped settings view similarly uses its own wrapper handle (`frame/settings/main.js:878`). Neither establishes a supported descendant-focus styling solution.
 
 A wrapper with its own focus handle is not a solution: it either adds another stop or reports the wrapper's focus, not the native switch's. Hover/checked styling cannot stand in for keyboard focus. Key-event heuristics cannot reliably observe focus entry, exit or programmatic transfer.
+
+## Fresh isolated native checks
+
+Ran against the installed host on 2026-11-11, using two temporary standalone views, with native Button, Switch and Radio directly under a root `v_flex` (no deferred Popover). No live app/home/settings changes or interaction.
+
+```sh
+herdr-app check /tmp/aquarium-keyboard-native/styles --print-spec > /tmp/aquarium-keyboard-native/styles.log 2>&1
+herdr-app check /tmp/aquarium-keyboard-native/handles --print-spec > /tmp/aquarium-keyboard-native/handles.log 2>&1
+```
+
+Both commands exited **0** and printed `check passed`. The styles view applies `.h(36).border(2).border_color("#777777").focus(s => s.border_color("#ff00ff")).hover(s => s.bg("#334455"))` to each of the three controls. Its printed spec includes both state styles on all three; materialization then emits exactly:
+
+```text
+WARN  gpui_shell::materialize: state styles on a Switch are ignored; style the row around it instead
+```
+
+The handles view creates three distinct `cx.focus_handle()` values in `init`, assigning one via `track_focus` to each control. Its printed spec records all three handles; materialization emits exactly:
+
+```text
+WARN  gpui_shell::materialize: `track_focus` is not wired on a Switch: base's Switch owns this part of its own focus and accessibility. Put it on an element around it
+```
+
+Neither log contains a Button or Radio warning. No handle was focused programmatically and no keys were sent. The spec's recorded builders alone do not prove they survive native materialization: the warnings establish the Switch limitation. These checks do **not** establish focus-ring painting, actual keyboard traversal/activation, or Popover dismissal/return. Fixture sources are `/tmp/aquarium-keyboard-native/{styles,handles}/main.js`; complete logs are at the command paths above.
 
 ## Minimal host reproduction
 
