@@ -31,6 +31,7 @@ function fixture(settings = new Map(), immersive = false, viewport = { width: 22
     window: { viewport_size: () => viewport }, appWindow: () => ({ active: true }),
     newCompletions: () => [], schoolFamilies: () => [], schoolGeometry: () => ({ lane: 200 }),
     surfaceGeometry: () => ({ count: 0 }),
+    floatingSchoolGeometry: () => ({ layouts: [], height: 178 }),
   };
   for (const name of ['div', 'image', 'h_flex', 'v_flex']) env[name] = () => element(name);
   for (const name of ['Button', 'Switch', 'Radio', 'RadioGroup', 'Popover']) env[name] = { new: id => element(name, id) };

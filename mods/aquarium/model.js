@@ -32,6 +32,21 @@ export function floatingGeometry(width, height, address, children) {
     x: dx * ((seed >>> 16) % 101) / 100, y: dy * ((seed >>> 20) % 101) / 100 };
 }
 
+// Keep ordinary whole-tank paths. Broods taller than the tank cannot swim
+// vertically: give each a separate scroll band instead of piling them at y=0.
+export function floatingSchoolGeometry(width, height, families) {
+  const layouts = families.map(({ leader, children }) =>
+    floatingGeometry(width, height, leader.address, children.length));
+  let bottom = layouts.some(layout => layout.height <= height) ? height + 8 : 0;
+  const placed = layouts.map(layout => {
+    if (layout.height <= height) return { ...layout, top: 0 };
+    const top = bottom;
+    bottom += layout.height + 8;
+    return { ...layout, top };
+  });
+  return { layouts: placed, height: Math.max(height, bottom ? bottom - 8 : 0) };
+}
+
 export function schoolGeometry(width, height, count, immersive) {
   const columns = immersive ? Math.min(Math.max(1, count), width >= 720 ? 2 : 1) : Math.max(1, Math.floor(width / 420));
   const rows = Math.max(1, Math.ceil(count / columns));

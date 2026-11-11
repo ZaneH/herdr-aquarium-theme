@@ -2,7 +2,7 @@ import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, Button, Switch, Radio, RadioGroup, Popover } from "gpui-base";
 import { agents, terminals, theme, run, shared, setShared, props, focused, nextCommand, window as appWindow } from "herdr";
 import { parkMotion, startMotion, advanceMotion } from "./motion.js";
-import { detailsFor, schoolGeometry, floatingGeometry, fishAsset, newCompletions, schoolFamilies, surfaceGeometry } from "./model.js";
+import { detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolFamilies, surfaceGeometry } from "./model.js";
 
 const ART = "mods/aquarium/assets";
 const statusLabel = { working: "Working", blocked: "Needs you", done: "Finished", idle: "Resting" };
@@ -236,29 +236,29 @@ export default class Aquarium extends View {
 
     const bodyWidth = Math.max(104, this.size.width - 32);
     const bodyHeight = Math.max(178, this.size.height - 118);
-    const floats = families.map(family => ({ ...family,
-      layout: floatingGeometry(bodyWidth, bodyHeight, family.leader.address, family.children.length) }));
+    const floatingSchool = floatingSchoolGeometry(bodyWidth, bodyHeight, families);
+    const floats = families.map((family, index) => ({ ...family, layout: floatingSchool.layouts[index] }));
     this.syncMotion(floats, free && !paused && !this.suspended && appWindow().active, speed, turning, cx);
     const schoolView = free
-      ? div().relative().w_full().h(Math.max(bodyHeight, ...floats.map(({ layout }) => layout.height)))
+      ? div().relative().w(bodyWidth).h(floatingSchool.height).flex_none()
         .children(floats.map(({ leader, children, layout: g }) => {
           const entry = this.motion.get(leader.address);
           const m = entry.state;
-          return (g.stacked ? v_flex() : h_flex()).id(`family-${leader.address}-${entry.version}`).absolute()
-            .left(m.to.x).top(m.to.y).w(g.width).h(g.height).gap(8).items_center().justify_center()
+          return (g.stacked ? v_flex() : h_flex()).id(`family-${leader.address}-${entry.version}-${g.top}`).absolute()
+            .left(m.to.x).top(g.top + m.to.y).w(g.width).h(g.height).flex_none().gap(8).items_center().justify_center()
             .transition("left", { duration: m.phase === "moving" ? m.duration : 0, easing: "linear" })
             .transition("top", { duration: m.phase === "moving" ? m.duration : 0, easing: "linear" })
             .child(drawFish(leader, g.leaderWidth, 1, leader))
-            .when(children.length > 0, el => el.child(h_flex().w(g.broodWidth).flex_wrap().gap(4).justify_center()
+            .when(children.length > 0, el => el.child(h_flex().w(g.broodWidth).flex_none().flex_wrap().gap(4).justify_center()
               .children(children.map(({ agent, depth }) => drawFish(agent, 96, depth > 1 ? 0.48 : 0.6, leader)))));
         }))
-      : h_flex().flex_wrap().justify_around().items_start().children(families.map(({ leader, children }) => {
+      : h_flex().w(Math.max(bodyWidth, lane)).flex_none().flex_wrap().justify_around().items_start().children(families.map(({ leader, children }) => {
           const stacked = immersive || lane < 400;
           const leaderWidth = children.length && !stacked ? Math.floor(lane * 0.58) - 4 : lane;
           const broodWidth = stacked ? lane : lane - leaderWidth - 8;
-          return (stacked ? v_flex() : h_flex()).w(lane).min_h(geometry.height).gap(8).items_center().justify_center()
+          return (stacked ? v_flex() : h_flex()).w(lane).flex_none().min_h(geometry.height).gap(8).items_center().justify_center()
             .child(drawFish(leader, leaderWidth, 1, leader))
-            .when(children.length > 0, el => el.child(h_flex().w(broodWidth).flex_wrap().justify_center().gap(4)
+            .when(children.length > 0, el => el.child(h_flex().w(broodWidth).flex_none().flex_wrap().justify_center().gap(4)
               .children(children.map(({ agent, depth }) =>
                 drawFish(agent, Math.max(104, Math.min(220, broodWidth / 2 - 2)), depth > 1 ? 0.48 : 0.6, leader)))));
         }));
@@ -277,7 +277,7 @@ export default class Aquarium extends View {
           .when(side === "left", stream => stream.left(0))
           .when(side === "right", stream => stream.right(0)))))
       .child(div().absolute().top(50).bottom(10).left(16).right(16)
-        .id("school-scroll").overflow_y_scrollbar().child(schoolView))
+        .id("school-scroll").overflow_scrollbar().child(schoolView))
       .child(h_flex().absolute().top(10).right(18).gap(8).items_center()
         .child(this.button("aquarium-mode", immersive ? "Workspace" : "Immersive", () => { this.stopMotion(); run("layout.switch", { name: immersive ? "aquarium" : "aquarium-immersive" }); }))
         .child(options))
