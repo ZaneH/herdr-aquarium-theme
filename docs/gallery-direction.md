@@ -21,4 +21,8 @@ Typography stays outside the screenshot: a short title, the repository's existin
 
 The first rendered card was visually inspected. The second pass gently opened midtones further (exponent 0.84 → 0.80) and aligned the disclosure to the screenshot's right edge. All controls and existing privacy blurs are retained, with no clipping or overlap. The native SVGs, runtime theme, and behavior were not changed.
 
+## Runtime palette follow-up
+
+The runtime habitat SVGs now share a brighter turquoise-water, mineral-sand palette in both modes. Fish text uses compact dark ink backings and tank-local status/focus colors, independent of the host theme; chrome and native controls retain the host theme. Paint-level contrast tests cover the habitat colors, not full native compositing or keyboard acceptance. The gallery images above are unchanged historical graded captures, not screenshots of this updated runtime. A future sanitized native capture in both host themes is needed before refreshing the gallery or claiming visual acceptance.
+
 This deliberately shows only the immersive tank crop and its open settings, not a full app/sidebar view. It does not prove live movement, status transitions, or current runtime acceptance. Gallery-owner review of the final brightness and open-menu composition remains appropriate; a future cleaner capture must be separately sanitized before replacing the preserved input.

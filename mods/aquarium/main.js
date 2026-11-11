@@ -5,6 +5,8 @@ import { parkMotion, startMotion, advanceMotion } from "./motion.js";
 import { detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
 
 const ART = "mods/aquarium/assets";
+// Tank-local ink: independent of host chrome, readable over every habitat region.
+const tankInk = { background: "#173b46", foreground: "#f2faf5", working: "#b7efdb", blocked: "#ffd0b5", done: "#ffe49b", idle: "#d2e5e5" };
 const statusLabel = { working: "Working", blocked: "Needs you", done: "Finished", idle: "Resting" };
 
 export default class Aquarium extends View {
@@ -160,7 +162,7 @@ export default class Aquarium extends View {
     const drawFish = (a, width, scale, leader) => {
       const d = detailsFor(a, all.find(terminal => terminal.address === a.address));
       if (leader !== a) d.push(`Fish family: ${leader.title || leader.program.name}`);
-      const color = t[a.status] ?? t.muted;
+      const color = tankInk[a.status] ?? tankInk.idle;
       const moving = !paused && a.status !== "done" && a.status !== "blocked";
       const needsYou = a.status === "blocked";
       const traveling = moving && !free;
@@ -189,18 +191,18 @@ export default class Aquarium extends View {
         .when(needsYou && !paused, el => el.id(`front-glass-${a.address}`).loop("top", { from: 0, to: 6 * scale, period: 3200 }));
       return Button.new(`fish-${a.address}`).tab_index(tabIndex++).relative().w(width).h(artHeight + 38).flex_none()
         .flex().flex_col().items_center().justify_end().pb(9).rounded(14)
-        .border(1).border_color("#00000000").focus(s => s.border_color(t.accent))
-        .hover(s => s.bg("#143d4d66").border_color(t.accent))
+        .border(1).border_color("#00000000").focus(s => s.border_color(tankInk.background))
+        .hover(s => s.bg("#173b4614").border_color(tankInk.background))
         .accessibility_label(`${a.title || a.program.name}, ${statusLabel[a.status]}. ${d.join(". ")}. Open agent.`)
         .tooltip(`${a.title || a.program.name}\n${d.join("\n")}\nClick to open agent`)
         .on_hover((hovered, cx) => { this.hovered = hovered ? a.address : null; cx.notify(); })
         .on_click(() => open(a))
         .child(fish)
-        .child(h_flex().gap(5).items_center()
+        .child(h_flex().gap(5).items_center().px(5).rounded(4).bg(tankInk.background).text_color(tankInk.foreground)
           .child(div().size(6).rounded_full().bg(color))
           .child(div().max_w(width - 24).truncate().text_size(12).font_semibold()
             .child(`${leader !== a ? "↳ " : ""}${a.title || a.program.name}`)))
-        .child(div().text_size(11).text_color(color).child(statusLabel[a.status]));
+        .child(div().px(5).rounded(4).bg(tankInk.background).text_size(11).text_color(color).child(statusLabel[a.status]));
     };
 
     const toggle = (id, label, checked, change) => Switch.new(id).checked(checked).on_change(change)

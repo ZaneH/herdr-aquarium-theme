@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="300" viewBox="0 0 1400 300" preserveAspectRatio="xMidYMax slice">
 <defs>
- <linearGradient id="water" x2="0" y2="1"><stop stop-color="#174b5b"/><stop offset=".55" stop-color="#0b2d3d"/><stop offset="1" stop-color="#091f2b"/></linearGradient>
+ <linearGradient id="water" x2="0" y2="1"><stop stop-color="#83cfc9"/><stop offset=".55" stop-color="#64b7ba"/><stop offset="1" stop-color="#519da8"/></linearGradient>
  <linearGradient id="light" x2=".4" y2="1"><stop stop-color="#b4efd0" stop-opacity=".12"/><stop offset="1" stop-color="#b4efd0" stop-opacity="0"/></linearGradient>
- <linearGradient id="sand" x2="0" y2="1"><stop stop-color="#68766b"/><stop offset="1" stop-color="#273f42"/></linearGradient>
- <g id="grass" fill="none" stroke-linecap="round"><path d="M0 0 Q-20-50-8-110 M0 0 Q22-55 15-85 M0 0 Q-35-28-28-65" stroke="#367568" stroke-width="7"/><path d="M0 0 Q-2-52 6-137 M0 0 Q35-36 31-61" stroke="#4c9078" stroke-width="5"/></g>
+ <linearGradient id="sand" x2="0" y2="1"><stop stop-color="#d4cfaa"/><stop offset="1" stop-color="#a3b79e"/></linearGradient>
+ <g id="grass" fill="none" stroke-linecap="round"><path d="M0 0 Q-20-50-8-110 M0 0 Q22-55 15-85 M0 0 Q-35-28-28-65" stroke="#519580" stroke-width="7"/><path d="M0 0 Q-2-52 6-137 M0 0 Q35-36 31-61" stroke="#79b493" stroke-width="5"/></g>
 </defs>
 <path fill="url(#water)" d="M0 0H1400V300H0Z"/>
 <path fill="url(#light)" d="M100 0H220L430 300H250Z M480 0H530L700 300H590Z M1000 0H1100L1330 300H1120Z"/>
 <g fill="none" stroke="#6cb9b1" stroke-opacity=".14"><path d="M0 15 Q200 30 400 12T800 17T1200 14T1600 20"/><path d="M0 22 Q200 37 400 19T800 24T1200 21T1600 27"/></g>
 <path d="M0 220 Q170 204 350 219T720 218T1050 220T1400 213V300H0Z" fill="url(#sand)"/>
 <g opacity=".85" transform="translate(0 -61)"><use href="#grass" x="68" y="290"/><use href="#grass" x="96" y="295" transform="translate(30 85) scale(.7)"/><use href="#grass" x="1290" y="289"/><use href="#grass" x="1350" y="299"/><use href="#grass" x="1140" y="294" transform="translate(340 100) scale(.65)"/></g>
-<g fill="#213d43" transform="translate(0 -61)"><ellipse cx="170" cy="285" rx="58" ry="15"/><ellipse cx="1228" cy="285" rx="45" ry="13"/></g>
+<g fill="#71968e" transform="translate(0 -61)"><ellipse cx="170" cy="285" rx="58" ry="15"/><ellipse cx="1228" cy="285" rx="45" ry="13"/></g>
 <g fill="#b1d5bc" opacity=".12"><circle cx="252" cy="72" r="1"/><circle cx="800" cy="120" r="1.5"/><circle cx="621" cy="220" r="1"/><circle cx="978" cy="63" r="1"/><circle cx="441" cy="169" r="1.5"/><circle cx="1101" cy="230" r="1"/></g>
 </svg>
