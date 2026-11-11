@@ -163,6 +163,12 @@ export default class Aquarium extends View {
     const geometry = schoolGeometry(Math.max(120, this.size.width - 32), Math.max(170, this.size.height - 140), families.length, immersive);
     const lane = geometry.lane;
     const open = a => {
+      // Raw background children have no mapped pane/agent block target.
+      // Follow Herdr's native child-list workflow without changing workspace scope.
+      if (!agents().some(mapped => mapped.address === a.address)) {
+        run("terminal.peek", { terminal: a.address });
+        return;
+      }
       run("agent.focus", { terminal: a.address });
       if (immersive) {
         this.suspended = true;

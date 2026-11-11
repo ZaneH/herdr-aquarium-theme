@@ -14,7 +14,7 @@ Regenerate from the preserved sanitized input with `uv run --with pillow==11.3.0
 
 **Workspace** (`aquarium`): aquarium above your normal terminals. Tabs, splits, pane headers, Files/Changes, status bar, and shortcuts stay intact.
 
-**Immersive** (`aquarium-immersive`): the tank fills the workspace beside the sidebar. Click a fish to open its terminal at full workspace size. **Back to aquarium** returns to the water without closing the agent. **Workspace / Immersive** buttons switch layouts.
+**Immersive** (`aquarium-immersive`): the tank fills the workspace beside the sidebar. Click a mapped agent fish to open its terminal at full workspace size. Raw background children instead open Herdr’s native terminal peek, without replacing the tank. **Back to aquarium** returns to the water without closing the agent. **Workspace / Immersive** buttons switch layouts.
 
 ```sh
 herdr-app do layout.switch '{"name":"aquarium"}'
@@ -59,7 +59,7 @@ The source sheets are **camera rotations, not fin-flapping animation**. The resu
 
 ### Telemetry limitation
 
-Live status-reporting background child agents join their verified parent’s fish family even without a pane; shell/build subprocesses are not added, and surviving or unknown-parent children remain independent without invented workspace scope. Like Herdr’s native child list, raw child `done` displays as resting (not an unseen completion), and `error` as needing you.
+Live status-reporting background child agents join their verified parent’s fish family even without a pane; clicking a raw-only child opens its native terminal peek in either layout, without assigning a pane or invented workspace scope. Shell/build subprocesses are not added, and surviving or unknown-parent children remain independent without invented workspace scope. Like Herdr’s native child list, raw child `done` displays as resting (not an unseen completion), and `error` as needing you.
 
 The installed Herdr API does **not** document cache, context, model, or thinking telemetry. Cache and thinking show **not reported**. Nothing is inferred from agent status, fabricated, or scraped from terminal output/private session files. A future agent-side reporting integration can extend `mods/aquarium/model.js`.
 
