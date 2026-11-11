@@ -1,6 +1,12 @@
-# Dense-school source cost (issue 5)
+# Aquarium performance evidence (issue 5)
 
-## Integrated-source rerun after discovery, lifecycle, palette and geometry fixes
+Native process evidence below shows significant unresolved dense-school active CPU cost. Neither the historical proxy nor the native observations complete resource acceptance.
+
+## HISTORICAL: b50a31f source-proxy rerun (not current source)
+
+The table and scope in this historical section describe the source/tool revisions recorded here, **not current production source** or current native performance.
+
+### Integrated-source rerun after discovery, lifecycle, palette and geometry fixes
 
 This supersedes all earlier single-pending-timer proxy measurements, including
 runs at `6241385` and `0450417`: those fixtures could silently lose concurrent
@@ -49,7 +55,7 @@ Source SHA-256:
 |250|hidden|25|organized|1914|1.38572|0.02030|0.05560|null|
 |250|hidden|25|free|2414|1.65569|0.01979|0.05531|0.00494|
 
-## Fixture and measured scope
+### Historical fixture and measured scope
 
 The current `main.js` class runs in a Node VM with all current model/motion
 exports. Imports are removed only to supply proxy builders and synthetic Herdr
@@ -113,3 +119,123 @@ Followup: retain JSONL and rerun after further source changes; separately establ
 tracing before isolated startup CPU/RSS experiments. Actual crowded-school
 paint CPU/GPU and decoded residency require an authorized isolated renderer
 with real counters; paused/hidden live work also remains unmeasured.
+
+
+## Actual native process evidence: synthetic 250, enabled versus paused
+
+Measured source commit: **`5a3cf635808f0e6c0cee56d64ee34c58a6276fe7`**.
+The fixture copied production `main.js`, `model.js`, and `motion.js`, changing
+only main's Herdr import to a fixture shim. SHA-256 of original source:
+
+- `main.js`: `756c7ebdcd9ab1cd90fd2be671d88d77a9d33580dd89bf30f8a46801b56ac25e`
+- `model.js`: `bcb50c71de32404d57ab1f42b297f7e6e1de00594ab257a5761abb8c7d046fa4`
+- `motion.js`: `91132dd2de48f533b9743e7a51b8e5779bf91db3ddf00b36d362892912598eb6`
+
+### Target and controlled scene
+
+Actual native GUI/rendering host **PID 945**, executable
+`Herdr.app/Contents/MacOS/Herdr`, bundle `dev.herdr.app`, owns the app IPC
+socket `herdr-app.sock`. Executable/start identity was unchanged across samples.
+This is not CLI/check process RSS. Parent independently verified actual OS
+foreground PID 945 and visibly painted fish before capture.
+
+The scene contained **250 independent SYNTHETIC roots, all working**, with all
+25 species represented 10 times each; it was explicitly labeled synthetic/not
+telemetry. It does not represent 250 actual worker terminals. Parent recorded
+viewport **1440 × 822** for the source body beneath a **48-pixel banner** in the
+870-pixel layout. Both conditions used this same full-width scene, Normal speed,
+Smooth turning, free-floating arrangement, and effects false (water and bubbles
+off). Parent confirmed two native paused frames A/B were pixel-identical before
+the paused GO; this is a static positive control, not an FPS measurement.
+
+The shim makes shared preferences fixture-local/read-only and app commands
+no-ops. Its `realWindow() ?? { active: true }` fallback applies only to headless
+fixture checks when no window exists; native foreground was independently
+verified, and visible native fish provided a separate positive control. CLI
+checks do not establish native rendering performance.
+
+### OS process results
+
+Each condition had a 5-second warmup then 31 OS samples over approximately
+30 seconds, at 1 Hz. No screenshots, UI changes or switches occurred during
+these official windows under the parent's protocol. Values below are copied
+from the actual per-condition JSON (RSS KiB divided by 1024 for MiB).
+
+| Counter | Enabled | Fixture paused |
+|---|---:|---:|
+| Elapsed (s) | 30.007799 | 30.008802 |
+| Cumulative CPU delta (CPU s) | 30.430000 | 0.490000 |
+| CPU (% of one logical CPU) | 101.406970 | 1.632854 |
+| RSS start (MiB) | 230.359 | 237.703 |
+| RSS end (MiB) | 210.891 | 237.719 |
+| RSS min (MiB) | 210.547 | 237.703 |
+| RSS max (MiB) | 230.359 | 237.734 |
+| RSS mean (MiB) | 211.355 | 237.713 |
+
+Enabled window: 2026-11-11 **23:28:37.985559–23:29:07.992582 UTC**;
+paused: **23:32:51.343420–23:33:21.351443 UTC**. CPU is cumulative process
+CPU-time delta divided by monotonic elapsed time; 100% equals one logical CPU,
+not the whole machine. The observed difference is **99.774 percentage points**.
+Active consumption near **one full core is significant and unresolved**, not
+evidence that the dense scene is lightweight.
+
+This is a single sequential whole-app enabled-versus-paused observation, not
+isolated motion cost. Both free-floating conditions use PNG assets and construct
+both directional image builders; there is no asserted animated-WebP/static-PNG
+decode difference. Face, position, opacity, native transitions/tasks and fresh
+initial pose can differ. Background app work, OS load, sequential cache/allocator
+history, short warmup and sampling overhead confound attribution. Higher paused
+RSS does not establish that pause allocates more or animation saves memory.
+
+### Earlier actual small-school observation (different workload)
+
+An earlier 60-second PID 945 capture observed **2 roots + 3 real workers = 5
+fish**, saved Normal/Smooth, in the actual workspace. It collected 61 samples
+from **2026-11-11 17:12:12.357933–17:13:12.371292 UTC**, monotonic elapsed
+**60.014809 s**. Cumulative CPU **1572.48 → 1593.31 s**, delta **20.83 CPU s**,
+yielded **34.708100% of one logical CPU**. RSS start/min **239.500 MiB**,
+end/max **259.000 MiB**, mean **244.269 MiB**.
+
+These are actual small-school/full-app metrics, not a 250-fish baseline. Real
+terminal/worker updates, other workspace/background activity and the parent's
+concurrent native-frame capture confound them. No matched idle baseline was
+collected. Do **not** compare these numbers apples-to-apples with the synthetic
+250 scene or extrapolate per-fish costs.
+
+### Short native stack diagnostic, outside the official windows
+
+A separately authorized unprivileged `sample 945 3` succeeded with symbols and
+unchanged process identity. The main thread had 855 stack observations, with a
+763-observation GPUI draw branch and 635-observation prepaint subtree. Within
+that subtree were a QuickJS/script `call_render_once` path (210 observations),
+a sibling native `ScriptView::draw` branch (193), and native layout/Taffy work
+(106); native paint work was also visible. These are inclusive sampled stack
+occurrences, **not exclusive CPU percentages**: nested counts overlap and must
+not be added. Blocking waits on other threads are not CPU-hotness evidence.
+
+The evidence is mixed script snapshot plus native tree/build/layout/paint work,
+not an exclusive JS-versus-native bottleneck verdict or exact JS source-line
+attribution. Production JS has no requestAnimationFrame/per-frame loop, but the
+**native host can execute QuickJS snapshots during render**. Absence of a JS
+per-frame scheduler does not mean rendering never re-enters JS.
+
+### Limits and local evidence
+
+No GPU counters, decoded-image residency, frame rate/FPS, leak conclusion or
+resource-acceptance claim is supported. RSS is process residency, not private
+footprint, aquarium-only memory or GPU memory. Further controlled repetitions
+and correctness-preserving investigation of repeated snapshots and native tree
+work are needed before optimizing or claiming acceptable dense-school cost.
+
+Durable **local-only** artifacts under the repository's root Git directory
+(`.git/aquarium-reports/live-nativeqa/`, not a worktree's `.git` pointer):
+
+- `perf-active.json`, `perf-active.md`, `perf-paused.json`, `perf-paused.md`
+- `perf-comparison.md`
+- `native250-sample.txt`, `native250-profile-summary.md`
+- `small-school-process-report.md`, `small-school-process-samples.json`
+
+These local artifacts are not published raw traces or private captures. This
+document records the bounded numeric findings without embedding screenshots or
+raw stack traces. The historical source-proxy table above remains useful only
+for its recorded source-level scope, not as a substitute for these native costs.
