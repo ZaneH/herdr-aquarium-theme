@@ -36,6 +36,9 @@ export default class Aquarium extends View {
   }
 
   stopMotion() {
+    // All callers stop aquarium activity (close, explicit navigation, or inactive window).
+    for (const task of this.shimmers.values()) task.cancel();
+    this.shimmers.clear();
     this.motionTask?.cancel();
     this.motionTask = null;
     this.motionDue = Infinity;
@@ -51,12 +54,12 @@ export default class Aquarium extends View {
   async close() {
     this.closed = true;
     this.stopMotion();
-    for (const task of this.shimmers.values()) task.cancel();
-    this.shimmers.clear();
   }
 
   syncCompletions(school, paused, cx) {
     if (this.closed) return;
+    // Window inactivity is not copy visibility; explicit navigation owns suspension.
+    paused = paused || this.suspended || !appWindow().active;
     const current = new Map(school.map(agent => [agent.address, agent.status]));
     for (const [address, task] of this.shimmers) {
       if (paused || current.get(address) !== "done") {
@@ -142,7 +145,7 @@ export default class Aquarium extends View {
           run("aquarium.resume");
         }))
         .child(div().flex_1().truncate().text_size(13).text_color(t.foreground).child(agent?.title || "Agent terminal"))
-        .child(this.button("back-to-workspace", "Workspace", () => { this.stopMotion(); run("layout.switch", { name: "aquarium" }); }, 1));
+        .child(this.button("back-to-workspace", "Workspace", () => { this.suspended = true; this.stopMotion(); run("layout.switch", { name: "aquarium" }); }, 1));
     }
 
     const paused = shared("aquarium.paused") !== false;
@@ -291,7 +294,7 @@ export default class Aquarium extends View {
       .child(div().absolute().top(50).bottom(10).left(16).right(16)
         .id("school-scroll").overflow_scrollbar().child(schoolView))
       .child(h_flex().absolute().top(10).right(18).gap(8).items_center()
-        .child(this.button("aquarium-mode", immersive ? "Workspace" : "Immersive", () => { this.stopMotion(); run("layout.switch", { name: immersive ? "aquarium" : "aquarium-immersive" }); }))
+        .child(this.button("aquarium-mode", immersive ? "Workspace" : "Immersive", () => { this.suspended = true; this.stopMotion(); run("layout.switch", { name: immersive ? "aquarium" : "aquarium-immersive" }); }))
         .child(options))
       .when(!school.length, el => el.child(v_flex().absolute().top(90).left(24).gap(6)
         .child(div().text_size(17).child("A little quiet in here."))

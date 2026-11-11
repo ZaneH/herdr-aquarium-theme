@@ -239,3 +239,45 @@ test('completion expiry removes only its current shimmer and notifies once', () 
   assert.equal(f.view.shimmers.size, 0);
   assert.equal(f.cx.notifications, 1);
 });
+
+
+test('explicit suspension cancels expiry and hidden reconciliation cannot recreate it', () => {
+  const f = fixture();
+  const school = status => [{ address: 'child', status }];
+  f.view.syncCompletions(school('done'), false, f.cx);
+  const old = f.tasks.at(-1);
+  // Same lifecycle sequence used before immersive select and layout-switch navigation.
+  f.view.suspended = true;
+  f.view.stopMotion();
+  assert.ok(old.cancelled);
+  f.view.syncCompletions(school('working'), false, f.cx);
+  f.view.syncCompletions(school('done'), false, f.cx);
+  assert.equal(f.tasks.length, 1);
+  assert.equal(f.view.shimmers.size, 0);
+  f.fire(3000, old);
+  assert.equal(f.cx.notifications, 0);
+  f.view.suspended = false;
+  f.view.syncCompletions(school('done'), false, f.cx);
+  assert.equal(f.tasks.length, 1); // no replay of a hidden completion
+  f.view.syncCompletions(school('working'), false, f.cx);
+  f.view.syncCompletions(school('done'), false, f.cx);
+  assert.equal(f.tasks.length, 2);
+});
+
+test('inactive window reconciliation cancels expiry and consumes completions without replay', () => {
+  const f = fixture();
+  const school = status => [{ address: 'child', status }];
+  f.view.syncCompletions(school('done'), false, f.cx);
+  const old = f.tasks.at(-1);
+  f.clock.active = false;
+  f.view.syncCompletions(school('done'), false, f.cx);
+  assert.ok(old.cancelled);
+  f.view.syncCompletions(school('working'), false, f.cx);
+  f.view.syncCompletions(school('done'), false, f.cx);
+  f.fire(3000, old);
+  assert.equal(f.cx.notifications, 0);
+  f.clock.active = true;
+  f.view.syncCompletions(school('done'), false, f.cx);
+  assert.equal(f.tasks.length, 1);
+  assert.equal(f.view.shimmers.size, 0);
+});
