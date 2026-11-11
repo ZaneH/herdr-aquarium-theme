@@ -65,7 +65,7 @@ if (process.argv.includes('--self-check')) {
 }
 const repeats = 7, iterations = 100, warmup = 30;
 const hashes = Object.fromEntries(['main', 'model', 'motion'].map(name => [name, createHash('sha256').update(readFileSync(new URL(`../mods/aquarium/${name}.js`, import.meta.url))).digest('hex')]));
-console.log(JSON.stringify({ metadata: { date: new Date().toISOString(), node: process.version, v8: process.versions.v8, os: `${platform()} ${release()}`, cpu: cpus()[0].model, cores: cpus().length, revision: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), hashes, repeats, iterations, warmup, size: '900x500', units: 'milliseconds per call', scope: 'Node source descriptions with proxy builders; no native materialization, layout, image decode or paint' } }));
+console.log(JSON.stringify({ metadata: { date: new Date().toISOString(), node: process.version, v8: process.versions.v8, os: `${platform()} ${release()}`, cpu: cpus()[0].model, cores: cpus().length, revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: new URL('../', import.meta.url), encoding: 'utf8' }).trim(), hashes, repeats, iterations, warmup, size: '900x500', units: 'milliseconds per call', scope: 'Node source descriptions with proxy builders; no native materialization, layout, image decode or paint' } }));
 for (const count of [0, 100, 250]) for (const shape of ['flat', 'nested', 'hidden']) for (const free of [false, true]) {
   const f = fixture(count, shape !== 'flat', free, shape === 'hidden');
   const initial = f.render();
