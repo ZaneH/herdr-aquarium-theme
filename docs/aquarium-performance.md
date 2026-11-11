@@ -80,8 +80,10 @@ possible early completion-expiry work, and the dispatch assertion overhead—not
 pure motion callback cost, real wakeup frequency, or CPU utilization.
 Empty/organized scheduler values are `null`: not sampled, **not** evidence of
 no timers (organized cases can own completion-expiry tasks). Nodes are counted
-in a render after timing; free scheduler dispatch can expire shimmers before
-that count, while organized cases leave their timers pending. Self-check also
+in a final render after synthetic timer sampling, whereas render timing occurs
+before the clock advances; these are not necessarily identical frames. Free
+scheduler dispatch can expire shimmers before that count, while organized cases
+leave their timers pending. Self-check also
 verifies concurrent listed done-agent expiries and working-agent motion survive
 and cancel independently. Bounded-depth families and element counts scale roughly
 with fish count; this does not establish asymptotic linearity. Per-fish terminal
