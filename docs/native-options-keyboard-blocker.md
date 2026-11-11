@@ -72,9 +72,11 @@ export default class NativeFocusRepro extends View {
 }
 ```
 
-Host action: replay the fixture and confirm the Switch state-style diagnostic; then wire native Switch focus styling to its existing focusable element/private handle, or expose a documented supported way to style that exact handle's focus without another tab stop. Add host keyboard coverage for focus entry/exit and rerender while focused. Do not require a mod to implement traversal or activation. Clarify which state-style builders Switch supports in generated declarations/diagnostics.
+Host handoff: the proven gap is unsupported Switch state-style/`track_focus` customization, not broken built-in native focus painting or keyboard behavior. The fixture's requested magenta border tests customization; its absence alone does not establish that the native control lacks an adequate built-in focus indicator. Replay the fixture to confirm the diagnostic and clarify supported builders in generated declarations/diagnostics. If manual acceptance finds no adequate native indicator, or exact focus customization is required, wire styling to the existing focusable element/private handle or expose a documented supported way to style that handle without another tab stop. Add host keyboard coverage for focus entry/exit and rerender while focused. Do not replace native controls with fake controls, add duplicate focus stops, or require a mod to implement traversal or activation.
 
-## Manual keyboard acceptance (after host fix)
+## Manual keyboard acceptance (runnable now)
+
+No host fix is a presumed prerequisite: actual native focus painting and keyboard behavior remain unobserved. Run this acceptance on the current host and distinguish its built-in indicator from the unsupported requested custom border.
 
 Human-driven only; record host build/platform and keyboard-navigation settings. Keep pointer away from the controls so hover cannot be mistaken for focus.
 
