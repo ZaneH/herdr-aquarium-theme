@@ -109,7 +109,7 @@
             "mod": "aquarium"
           },
           "background": {
-            "image": "mods/aquarium/assets/habitat.svg",
+            "image": "mods/aquarium/assets/habitat-bright-v1.svg",
             "fit": "cover"
           }
         },
@@ -197,6 +197,6 @@
     }
   ],
   "theme": "aquarium",
-  "preview": "mods/aquarium/assets/habitat.svg",
+  "preview": "mods/aquarium/assets/habitat-bright-v1.svg",
   "terminal_opacity": 1
 }
