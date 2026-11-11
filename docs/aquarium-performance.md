@@ -1,49 +1,50 @@
 # Dense-school source cost (issue 5)
 
-## Current-source rerun after child discovery
+## Integrated-source rerun after discovery, lifecycle, palette and geometry fixes
 
-This supersedes the pre-discovery timing table from commit `2f84609`.
-Production files were read only. This is **not a live paint benchmark** and does
+This supersedes the child-discovery timing table measured at `6241385`.
+The coordinator ran the final integrated root source; this document uses that
+output, not a rerun of the implementer's older worktree. Production files were read only. This is **not a live paint benchmark** and does
 not complete issue 5's CPU/GPU/decoded-image-memory acceptance check.
 
 ```sh
 node tools/benchmark-aquarium.mjs --self-check
-node tools/benchmark-aquarium.mjs > /tmp/aquarium-benchmark-discovery.jsonl
+node tools/benchmark-aquarium.mjs > /tmp/aquarium-benchmark-final.jsonl
 ```
 
-Raw samples and complete metadata: `/tmp/aquarium-benchmark-discovery.jsonl`.
-No dependencies or timing assertions. Seven samples of 100 calls each, 30 render
+Raw samples and complete metadata: `/tmp/aquarium-benchmark-final.jsonl`.
+No dependencies, timing assertions, or CI timing threshold. Seven samples of 100 calls each, 30 render
 warmups; fixed case order. Values below are medians in milliseconds per call.
 
-Measured 2026-11-11T15:48:03.146Z; production revision `624138546649e59218aa539159812ccf102e4ffc`.
+Measured 2026-11-11T16:33:36.755Z; production revision `0450417839b352011251c814ca14fb7d6b1b90bc`.
 Node v26.12.1, V8 14.6.202.34-node.40, darwin 27.0.0, Apple M1 (8 cores).
 
 Source SHA-256:
 
-- `main.js`: `d1e8bfbe17835b6d0ce78cd275982fdefd7dd993c5a2a84a45af8730e905f5ea`
-- `model.js`: `b540f40f1310f7890d5786e1d77e2e8590b01ea0ddcfcce9f6ecfa2a0f89785e`
+- `main.js`: `ab25416321f2de86af67ba8d5f1fd4a9fb1de27dc58128391213d87a5768f4f7`
+- `model.js`: `1cfee89af4e269e9745997e6d6aedee81c5d18d48df1f59f7b58122c1b3fcdcd`
 - `motion.js`: `91132dd2de48f533b9743e7a51b8e5779bf91db3ddf00b36d362892912598eb6`
 
 | Fish | Shape | Listed | Arrangement | Nodes | Render | Discovery | Grouping | Scheduler |
 |---:|---|---:|---|---:|---:|---:|---:|---:|
-|0|flat|0|organized|55|0.03081|0.00011|0.00013|no task|
-|0|flat|0|free|55|0.02723|0.00008|0.00011|no task|
-|0|nested|0|organized|55|0.02681|0.00007|0.00009|no task|
-|0|nested|0|free|55|0.02706|0.00007|0.00009|no task|
-|0|hidden|0|organized|55|0.02736|0.00007|0.00009|no task|
-|0|hidden|0|free|55|0.02677|0.00007|0.00009|no task|
-|100|flat|100|organized|901|0.52262|0.00612|0.01369|no task|
-|100|flat|100|free|1102|0.63044|0.00631|0.01390|0.01185|
-|100|nested|100|organized|821|0.49638|0.00611|0.01877|no task|
-|100|nested|100|free|1022|0.57193|0.00610|0.01876|0.00245|
-|100|hidden|10|organized|797|0.47568|0.00763|0.01968|no task|
-|100|hidden|10|free|997|0.55472|0.00752|0.02052|0.00265|
-|250|flat|250|organized|2175|1.42278|0.01541|0.03651|no task|
-|250|flat|250|free|2676|1.72924|0.01526|0.03620|0.02929|
-|250|nested|250|organized|1975|1.33961|0.01579|0.05075|no task|
-|250|nested|250|free|2476|1.55040|0.01611|0.05046|0.00438|
-|250|hidden|25|organized|1914|1.33722|0.01915|0.05367|no task|
-|250|hidden|25|free|2414|1.53091|0.01881|0.05291|0.00381|
+|0|flat|0|organized|55|0.03177|0.00011|0.00014|no task|
+|0|flat|0|free|55|0.02653|0.00008|0.00011|no task|
+|0|nested|0|organized|55|0.02649|0.00007|0.00009|no task|
+|0|nested|0|free|55|0.02653|0.00007|0.00009|no task|
+|0|hidden|0|organized|55|0.02630|0.00007|0.00009|no task|
+|0|hidden|0|free|55|0.02630|0.00007|0.00009|no task|
+|100|flat|100|organized|901|0.56617|0.00605|0.01367|no task|
+|100|flat|100|free|1102|0.66410|0.00611|0.01381|0.01162|
+|100|nested|100|organized|821|0.51812|0.00604|0.01907|no task|
+|100|nested|100|free|1022|0.58707|0.00604|0.01874|0.00258|
+|100|hidden|10|organized|797|0.51324|0.00739|0.02018|no task|
+|100|hidden|10|free|997|0.58541|0.00738|0.01957|0.00241|
+|250|flat|250|organized|2175|1.43690|0.01522|0.03821|no task|
+|250|flat|250|free|2676|1.80736|0.01534|0.03831|0.02869|
+|250|nested|250|organized|1975|1.40231|0.01514|0.05292|no task|
+|250|nested|250|free|2476|1.62465|0.01547|0.05249|0.00423|
+|250|hidden|25|organized|1914|1.39406|0.01896|0.05514|no task|
+|250|hidden|25|free|2414|1.63188|0.01851|0.05551|0.00374|
 
 ## Fixture and measured scope
 
@@ -77,7 +78,11 @@ with fish count; this does not establish asymptotic linearity. Per-fish terminal
 fish, so deep chains can also be quadratic. These are source-level caveats,
 not an isolated measured egregious hotspot or a reason for speculative edits.
 Many non-agent terminals, deep chains, narrow/immersive views and oversized
-single broods remain separate followup cases.
+single broods remain separate followup cases. Current geometry assigns separate
+scroll bands to taller-than-tank families and to multiple fitting families that
+each exceed half the viewport in both dimensions. Single fitting families and
+ordinary full-tank routes remain unchanged; ordinary routes may still cross.
+This static target separation is not native clickability or collision acceptance.
 
 Proxy overhead, VM/Node versus native JS engine, GC and fixed-order warming
 limit absolute timing relevance. There is no native materialization, layout,
