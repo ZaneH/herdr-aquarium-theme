@@ -23,6 +23,20 @@ class AnimationTests(unittest.TestCase):
     def test_instant_turns_have_only_two_opposite_views(self):
         self.assertEqual({a for _, _, a in prepare.route(False)}, {0, 15})
 
+    def test_bubbles_have_moving_transparent_clips_and_paused_posters(self):
+        for side in ('left', 'right'):
+            path = ROOT / f'mods/aquarium/assets/bubbles-{side}'
+            with Image.open(path.with_suffix('.webp')) as clip:
+                self.assertTrue(clip.is_animated)
+                self.assertEqual(clip.n_frames, 180)
+                self.assertEqual(clip.size, (64, 384))
+                first = clip.convert('RGBA')
+                clip.seek(90)
+                self.assertNotEqual(first.tobytes(), clip.convert('RGBA').tobytes())
+                self.assertEqual(first.getpixel((0, 0))[3], 0)
+            with Image.open(path.with_suffix('.png')) as poster:
+                self.assertEqual(poster.tobytes(), first.tobytes())
+
     def test_all_twenty_five_species_have_valid_native_animations(self):
         files = list((ROOT / 'mods/aquarium/assets').glob('*-swim.webp'))
         self.assertEqual(len(files), 25)

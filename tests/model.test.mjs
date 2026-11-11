@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { speciesFor, detailsFor, fishAsset, schoolGeometry } from '../mods/aquarium/model.js';
+import { speciesFor, detailsFor, fishAsset, schoolGeometry, newCompletions, schoolFamilies } from '../mods/aquarium/model.js';
 
 test('fish assignment is stable and every selected sprite exists', () => {
   for (let i = 0; i < 100; i++) {
@@ -28,6 +28,44 @@ test('motion and status select the right asset, including gold and blocked fish'
   assert.ok(fishAsset({ ...agent, status: 'idle' }, false, true).endsWith('-swim.webp'));
   assert.ok(fishAsset({ ...agent, status: 'done' }, false, true).endsWith('-gold.png'));
   assert.ok(fishAsset({ ...agent, status: 'blocked' }, false, true).endsWith('.png'));
+});
+
+test('sub-agents form families through real parent chains, regardless of input order', () => {
+  const leader = { address: 't1', status: 'working' };
+  const child = { address: 't2', status: 'working' };
+  const grandchild = { address: 't3', status: 'done' };
+  const unrelated = { address: 'remote/t1', status: 'idle' };
+  const family = schoolFamilies([grandchild, child, unrelated, leader], [
+    { address: 't3', parent: 't2' }, { address: 't2', parent: 'bridge' },
+    { address: 'bridge', parent: 't1' }, { address: 't1' }, { address: 'remote/t1' },
+  ]);
+  assert.deepEqual(family, [
+    { leader: unrelated, children: [] },
+    { leader, children: [{ agent: grandchild, depth: 2 }, { agent: child, depth: 1 }] },
+  ]);
+  assert.equal(fishAsset(child, false, true, leader.address), fishAsset(leader, false, true));
+  assert.equal(fishAsset(grandchild, false, true, leader.address), `${speciesFor(leader.address)}-gold.png`);
+  assert.equal(detailsFor(child, { parent: 't1' }).includes('Parent: t1'), true);
+});
+
+test('missing parents and cyclic parent records never invent a family or lose fish', () => {
+  const school = ['t1', 't2', 'remote/t1'].map(address => ({ address }));
+  for (const terminals of [[], [{ address: 't1', parent: 'missing/t1' }], [
+    { address: 't1', parent: 't2' }, { address: 't2', parent: 't1' },
+  ]]) {
+    assert.deepEqual(schoolFamilies(school, terminals), school.map(leader => ({ leader, children: [] })));
+  }
+  assert.deepEqual(schoolFamilies([], []), []);
+});
+
+test('completion shimmer triggers only on entering done, not a redraw or title update', () => {
+  const done = { address: 't7', status: 'done', seq: 3 };
+  assert.deepEqual(newCompletions(new Map(), [done]), [done]);
+  assert.deepEqual(newCompletions(new Map([['t7', 'working']]), [done]), [done]);
+  assert.deepEqual(newCompletions(new Map([['t7', 'done']]), [{ ...done, seq: 4 }]), []);
+  assert.deepEqual(newCompletions(new Map([['t7', 'done']]), [{ ...done, status: 'idle' }]), []);
+  assert.deepEqual(newCompletions(new Map([['t7', 'idle']]), [done]), [done]);
+  assert.deepEqual(newCompletions(new Map([['t7', 'done']]), []), []);
 });
 
 test('tank geometry handles empty, narrow, and crowded schools without zero divisions', () => {

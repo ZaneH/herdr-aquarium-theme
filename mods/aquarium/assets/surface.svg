@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="48" viewBox="0 0 1600 48">
+<defs><linearGradient id="surface" x2="0" y2="1"><stop stop-color="#9de0cf" stop-opacity=".12"/><stop offset="1" stop-color="#9de0cf" stop-opacity="0"/></linearGradient></defs>
+<path d="M-100 9 Q0 0 100 9 T300 9 T500 9 T700 9 T900 9 T1100 9 T1300 9 T1500 9 T1700 9 V48H-100Z" fill="url(#surface)"/>
+<path d="M-100 9 Q0 0 100 9 T300 9 T500 9 T700 9 T900 9 T1100 9 T1300 9 T1500 9 T1700 9" fill="none" stroke="#b4ede4" stroke-opacity=".4" stroke-width="1"/>
+<path d="M-100 16 Q0 26 100 16 T300 16 T500 16 T700 16 T900 16 T1100 16 T1300 16 T1500 16 T1700 16" fill="none" stroke="#9de0cf" stroke-opacity=".15"/>
+</svg>

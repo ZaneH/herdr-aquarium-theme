@@ -11,6 +11,5 @@
 <path d="M0 220 Q170 204 350 219T720 218T1050 220T1400 213V300H0Z" fill="url(#sand)"/>
 <g opacity=".85" transform="translate(0 -61)"><use href="#grass" x="68" y="290"/><use href="#grass" x="96" y="295" transform="translate(30 85) scale(.7)"/><use href="#grass" x="1290" y="289"/><use href="#grass" x="1350" y="299"/><use href="#grass" x="1140" y="294" transform="translate(340 100) scale(.65)"/></g>
 <g fill="#213d43" transform="translate(0 -61)"><ellipse cx="170" cy="285" rx="58" ry="15"/><ellipse cx="1228" cy="285" rx="45" ry="13"/></g>
-<g fill="none" stroke="#a4dfd1" stroke-opacity=".18"><circle cx="1270" cy="199" r="5"/><circle cx="1278" cy="164" r="3"/><circle cx="1264" cy="123" r="6"/><circle cx="1281" cy="79" r="3"/><circle cx="119" cy="161" r="4"/><circle cx="128" cy="130" r="2"/></g>
 <g fill="#b1d5bc" opacity=".12"><circle cx="252" cy="72" r="1"/><circle cx="800" cy="120" r="1.5"/><circle cx="621" cy="220" r="1"/><circle cx="978" cy="63" r="1"/><circle cx="441" cy="169" r="1.5"/><circle cx="1101" cy="230" r="1"/></g>
 </svg>
