@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import * as motion from '../mods/aquarium/motion.js';
+import { newCompletions } from '../mods/aquarium/model.js';
 
 // Exercise the actual view scheduler without starting GPUI or its command listener.
 const source = readFileSync(new URL('../mods/aquarium/main.js', import.meta.url), 'utf8')
@@ -22,11 +23,12 @@ function fixture() {
     },
   } };
   const Aquarium = runInNewContext(`${source}\nAquarium;`, {
-    View: class {}, ...motion, Date: { now: () => clock.now },
+    View: class {}, ...motion, newCompletions, Date: { now: () => clock.now },
     appWindow: () => ({ active: clock.active }),
   });
   const view = new Aquarium();
-  Object.assign(view, { motion: new Map(), motionDue: Infinity, motionGeneration: 0 });
+  Object.assign(view, { motion: new Map(), motionDue: Infinity, motionGeneration: 0,
+    previous: new Map(), shimmers: new Map() });
   const sync = (enabled = true, members = families) => view.syncMotion(members, enabled, 'slow', true, cx);
   const fire = (now, task = tasks.at(-1)) => { clock.now = now; task.callback(cx); };
   return { clock, tasks, cx, view, sync, fire };
@@ -190,4 +192,50 @@ test('speed/turn changes re-prime from the current point; blocked/done leaders p
     assert.equal(f.view.motionDue, Infinity);
     assert.equal(f.view.motionTask, null);
   }
+});
+
+
+test('completion expiry cancels on departure, restart, pause and close; stale callbacks stay inert', async () => {
+  const f = fixture();
+  const sync = (status, paused = false) => f.view.syncCompletions(
+    status ? [{ address: 'child', status }] : [], paused, f.cx);
+  sync('working');
+  sync('done');
+  const first = f.tasks.at(-1);
+  assert.equal(first.delay, 3000);
+  sync('done');
+  assert.equal(f.tasks.length, 1);
+  sync('working');
+  assert.ok(first.cancelled);
+  sync('done');
+  const second = f.tasks.at(-1);
+  f.fire(3000, first);
+  assert.equal(f.cx.notifications, 0);
+  assert.equal(f.view.shimmers.get('child'), second);
+  sync(null);
+  assert.ok(second.cancelled);
+  sync('done');
+  const third = f.tasks.at(-1);
+  sync('done', true);
+  assert.ok(third.cancelled);
+  sync('done');
+  assert.equal(f.view.shimmers.size, 0);
+  sync('working');
+  sync('done');
+  const last = f.tasks.at(-1);
+  await f.view.close();
+  assert.ok(last.cancelled);
+  f.fire(6000, last);
+  assert.equal(f.cx.notifications, 0);
+  assert.equal(f.view.shimmers.size, 0);
+});
+
+test('completion expiry removes only its current shimmer and notifies once', () => {
+  const f = fixture();
+  f.view.syncCompletions([{ address: 'child', status: 'done' }], false, f.cx);
+  const task = f.tasks.at(-1);
+  f.fire(3000, task);
+  f.fire(3001, task);
+  assert.equal(f.view.shimmers.size, 0);
+  assert.equal(f.cx.notifications, 1);
 });

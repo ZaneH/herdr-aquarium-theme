@@ -51,6 +51,30 @@ export default class Aquarium extends View {
   async close() {
     this.closed = true;
     this.stopMotion();
+    for (const task of this.shimmers.values()) task.cancel();
+    this.shimmers.clear();
+  }
+
+  syncCompletions(school, paused, cx) {
+    if (this.closed) return;
+    const current = new Map(school.map(agent => [agent.address, agent.status]));
+    for (const [address, task] of this.shimmers) {
+      if (paused || current.get(address) !== "done") {
+        task.cancel();
+        this.shimmers.delete(address);
+      }
+    }
+    for (const agent of newCompletions(this.previous, school)) {
+      if (paused) continue;
+      const task = cx.timer.after(3000, cx => {
+        if (!this.closed && this.shimmers.get(agent.address) === task) {
+          this.shimmers.delete(agent.address);
+          cx.notify();
+        }
+      });
+      this.shimmers.set(agent.address, task);
+    }
+    this.previous = current;
   }
 
   syncMotion(families, enabled, speed, soft, cx) {
@@ -127,22 +151,7 @@ export default class Aquarium extends View {
     const water = shared("aquarium.water") !== false;
     const free = shared("aquarium.free") !== false;
     const speed = shared("aquarium.speed") === "normal" ? "normal" : "slow";
-    for (const agent of newCompletions(this.previous, school)) {
-      if (paused) continue;
-      const token = {};
-      this.shimmers.set(agent.address, token);
-      // One expiry per completion; native opacity animation draws every intervening frame.
-      cx.timer.after(3000, cx => {
-        if (this.shimmers.get(agent.address) === token) {
-          this.shimmers.delete(agent.address);
-          cx.notify();
-        }
-      });
-    }
-    this.previous = new Map(school.map(agent => [agent.address, agent.status]));
-    for (const address of this.shimmers.keys()) {
-      if (this.previous.get(address) !== "done") this.shimmers.delete(address);
-    }
+    this.syncCompletions(school, paused, cx);
     const selected = school.find(a => a.address === this.hovered)
       ?? focusedAgent ?? school.find(a => a.focused) ?? school[0];
     const detail = selected ? detailsFor(selected, all.find(a => a.address === selected.address)) : null;
