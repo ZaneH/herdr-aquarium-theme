@@ -18,6 +18,7 @@ export default class Aquarium extends View {
     this.motionDue = Infinity;
     this.motionGeneration = 0;
     this.suspended = false;
+    this.closed = false;
     cx.spawn(async cx => {
       for (;;) {
         const command = await nextCommand();
@@ -45,9 +46,14 @@ export default class Aquarium extends View {
     }
   }
 
-  async close() { this.stopMotion(); }
+  async close() {
+    this.closed = true;
+    this.stopMotion();
+  }
 
   syncMotion(families, enabled, speed, soft, cx) {
+    if (this.closed) return;
+    enabled = enabled && !this.suspended && appWindow().active;
     const now = Date.now();
     const addresses = new Set();
     for (const { leader, layout: g } of families) {
@@ -65,7 +71,8 @@ export default class Aquarium extends View {
   }
 
   scheduleMotion(cx) {
-    const due = Math.min(Infinity, ...[...this.motion.values()].map(entry => entry.state.due));
+    const due = this.closed || this.suspended ? Infinity
+      : Math.min(Infinity, ...[...this.motion.values()].map(entry => entry.state.due));
     if (due === this.motionDue) return;
     this.motionTask?.cancel();
     this.motionTask = null;
@@ -77,7 +84,7 @@ export default class Aquarium extends View {
       if (generation !== this.motionGeneration) return;
       this.motionTask = null;
       this.motionDue = Infinity;
-      if (!appWindow().active) { this.stopMotion(); cx.notify(); return; }
+      if (this.closed || this.suspended || !appWindow().active) { this.stopMotion(); cx.notify(); return; }
       const now = Date.now();
       for (const entry of this.motion.values()) {
         entry.state = advanceMotion(entry.state, entry.geometry, now, entry.speed, entry.soft);

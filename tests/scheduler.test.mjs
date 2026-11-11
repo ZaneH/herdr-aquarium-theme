@@ -102,6 +102,46 @@ test('inactive window parks without a replacement task, then can restart', () =>
   assert.equal(f.view.motion.get('parent').state.phase, 'ready');
 });
 
+test('suspension is a scheduler invariant, including stale callbacks and attempted resync', () => {
+  const f = fixture();
+  f.sync();
+  f.fire(250);
+  const pending = f.tasks.at(-1);
+  f.view.suspended = true;
+  f.view.stopMotion(); // immersive fish-open path, before layout.select
+  f.sync(); // enabled=true cannot override terminal-open suspension
+  assert.ok(pending.cancelled);
+  assert.equal(f.view.motion.get('parent').state.phase, 'parked');
+  assert.equal(f.view.motionDue, Infinity);
+  const notifications = f.cx.notifications;
+  f.fire(99999, pending);
+  assert.equal(f.cx.notifications, notifications);
+  assert.equal(f.tasks.length, 2);
+  f.view.suspended = false; // resume command delivered to tank copy
+  f.sync();
+  assert.equal(f.tasks.length, 3);
+  assert.equal(f.view.motion.get('parent').state.phase, 'ready');
+});
+
+test('inactive render cannot restart scheduling and close is terminal', async () => {
+  const f = fixture();
+  f.clock.active = false;
+  f.sync();
+  assert.equal(f.tasks.length, 0);
+  assert.equal(f.view.motion.get('parent').state.phase, 'parked');
+  f.clock.active = true;
+  f.sync();
+  const pending = f.tasks.at(-1);
+  await f.view.close();
+  const notifications = f.cx.notifications;
+  f.sync();
+  f.view.scheduleMotion(f.cx);
+  f.fire(99999, pending);
+  assert.equal(f.tasks.length, 1);
+  assert.equal(f.cx.notifications, notifications);
+  assert.equal(f.view.motionDue, Infinity);
+});
+
 test('speed/turn changes re-prime from the current point; blocked/done leaders park', () => {
   const f = fixture();
   f.sync();
