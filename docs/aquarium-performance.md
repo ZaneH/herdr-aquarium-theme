@@ -2,21 +2,24 @@
 
 ## Integrated-source rerun after discovery, lifecycle, palette and geometry fixes
 
-This supersedes the child-discovery timing table measured at `6241385`.
+This supersedes all earlier single-pending-timer proxy measurements, including
+runs at `6241385` and `0450417`: those fixtures could silently lose concurrent
+timers. Production source hashes remain those of `0450417`; the corrected
+benchmark tool is measured at `b50a31f`.
 The coordinator ran the final integrated root source; this document uses that
 output, not a rerun of the implementer's older worktree. Production files were read only. This is **not a live paint benchmark** and does
 not complete issue 5's CPU/GPU/decoded-image-memory acceptance check.
 
 ```sh
 node tools/benchmark-aquarium.mjs --self-check
-node tools/benchmark-aquarium.mjs > /tmp/aquarium-benchmark-final.jsonl
+node tools/benchmark-aquarium.mjs > /tmp/aquarium-benchmark-queue-final.jsonl
 ```
 
-Raw samples and complete metadata: `/tmp/aquarium-benchmark-final.jsonl`.
+Raw samples and complete metadata: `/tmp/aquarium-benchmark-queue-final.jsonl`.
 No dependencies, timing assertions, or CI timing threshold. Seven samples of 100 calls each, 30 render
 warmups; fixed case order. Values below are medians in milliseconds per call.
 
-Measured 2026-11-11T16:33:36.755Z; production revision `0450417839b352011251c814ca14fb7d6b1b90bc`.
+Measured 2026-11-11T16:43:37.618Z; repository revision `b50a31f44398d226534ef394e844417fdf5d74bd`.
 Node v26.12.1, V8 14.6.202.34-node.40, darwin 27.0.0, Apple M1 (8 cores).
 
 Source SHA-256:
@@ -27,24 +30,24 @@ Source SHA-256:
 
 | Fish | Shape | Listed | Arrangement | Nodes | Render | Discovery | Grouping | Scheduler |
 |---:|---|---:|---|---:|---:|---:|---:|---:|
-|0|flat|0|organized|55|0.03177|0.00011|0.00014|no task|
-|0|flat|0|free|55|0.02653|0.00008|0.00011|no task|
-|0|nested|0|organized|55|0.02649|0.00007|0.00009|no task|
-|0|nested|0|free|55|0.02653|0.00007|0.00009|no task|
-|0|hidden|0|organized|55|0.02630|0.00007|0.00009|no task|
-|0|hidden|0|free|55|0.02630|0.00007|0.00009|no task|
-|100|flat|100|organized|901|0.56617|0.00605|0.01367|no task|
-|100|flat|100|free|1102|0.66410|0.00611|0.01381|0.01162|
-|100|nested|100|organized|821|0.51812|0.00604|0.01907|no task|
-|100|nested|100|free|1022|0.58707|0.00604|0.01874|0.00258|
-|100|hidden|10|organized|797|0.51324|0.00739|0.02018|no task|
-|100|hidden|10|free|997|0.58541|0.00738|0.01957|0.00241|
-|250|flat|250|organized|2175|1.43690|0.01522|0.03821|no task|
-|250|flat|250|free|2676|1.80736|0.01534|0.03831|0.02869|
-|250|nested|250|organized|1975|1.40231|0.01514|0.05292|no task|
-|250|nested|250|free|2476|1.62465|0.01547|0.05249|0.00423|
-|250|hidden|25|organized|1914|1.39406|0.01896|0.05514|no task|
-|250|hidden|25|free|2414|1.63188|0.01851|0.05551|0.00374|
+|0|flat|0|organized|55|0.03174|0.00011|0.00014|null|
+|0|flat|0|free|55|0.02658|0.00008|0.00011|null|
+|0|nested|0|organized|55|0.02685|0.00007|0.00009|null|
+|0|nested|0|free|55|0.02695|0.00007|0.00009|null|
+|0|hidden|0|organized|55|0.02652|0.00007|0.00009|null|
+|0|hidden|0|free|55|0.02652|0.00007|0.00009|null|
+|100|flat|100|organized|902|0.55676|0.00606|0.01383|null|
+|100|flat|100|free|1077|0.66958|0.00604|0.01385|0.01213|
+|100|nested|100|organized|822|0.51584|0.00607|0.01906|null|
+|100|nested|100|free|997|0.58894|0.00608|0.01912|0.00265|
+|100|hidden|10|organized|797|0.51559|0.00810|0.01988|null|
+|100|hidden|10|free|997|0.59419|0.00801|0.01984|0.00261|
+|250|flat|250|organized|2176|1.43920|0.01504|0.03624|null|
+|250|flat|250|free|2614|1.83599|0.01556|0.03652|0.02899|
+|250|nested|250|organized|1976|1.41702|0.01492|0.05026|null|
+|250|nested|250|free|2414|1.64429|0.01516|0.05196|0.00436|
+|250|hidden|25|organized|1914|1.38572|0.02030|0.05560|null|
+|250|hidden|25|free|2414|1.65569|0.01979|0.05531|0.00494|
 
 ## Fixture and measured scope
 
@@ -70,9 +73,17 @@ independent motion family and that cancellation parks scheduling. Removing
 production discovery therefore fails the self-check rather than silently
 benchmarking two roots. No real agents or terminals are created.
 
-Scheduler samples jump the synthetic clock to successive deadlines: callback
-cost, not real wakeup frequency or CPU utilization. Empty/organized cases have
-no pending callback. Bounded-depth families and element counts scale roughly
+Scheduler samples retain all pending tasks with absolute synthetic deadlines
+and per-task cancellation, dispatching the earliest deadline on each tick.
+Free samples measure queue selection plus real dispatched callbacks, including
+possible early completion-expiry work, and the dispatch assertion overhead—not
+pure motion callback cost, real wakeup frequency, or CPU utilization.
+Empty/organized scheduler values are `null`: not sampled, **not** evidence of
+no timers (organized cases can own completion-expiry tasks). Nodes are counted
+in a render after timing; free scheduler dispatch can expire shimmers before
+that count, while organized cases leave their timers pending. Self-check also
+verifies concurrent listed done-agent expiries and working-agent motion survive
+and cancel independently. Bounded-depth families and element counts scale roughly
 with fish count; this does not establish asymptotic linearity. Per-fish terminal
 `all.find` has quadratic worst-case comparisons; grouping walks ancestry per
 fish, so deep chains can also be quadratic. These are source-level caveats,
@@ -84,7 +95,7 @@ each exceed half the viewport in both dimensions. Single fitting families and
 ordinary full-tank routes remain unchanged; ordinary routes may still cross.
 This static target separation is not native clickability or collision acceptance.
 
-Proxy overhead, VM/Node versus native JS engine, GC and fixed-order warming
+Proxy/assertion overhead, VM/Node versus native JS engine, GC and fixed-order warming
 limit absolute timing relevance. There is no native materialization, layout,
 paint, image loading/decoding, GPU measurement, CPU utilization, RSS, or decoded
 residency measurement here. No RGBA estimates are presented as memory use.
