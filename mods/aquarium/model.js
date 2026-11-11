@@ -3,10 +3,43 @@ const SPECIES = ["clownfish", "blue_tang", "betta", "koi", "fancy_goldfish", "ma
   "swordfish", "hammerhead_shark", "great_white_shark", "channel_catfish", "piranha", "moray_eel", "seahorse",
   "ocean_sunfish", "flounder", "silver_arowana"];
 
-export function speciesFor(address) {
+function hashFor(address) {
   let hash = 0;
   for (const char of address) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return SPECIES[hash % SPECIES.length];
+  return hash;
+}
+
+export function speciesFor(address) {
+  return SPECIES[hashFor(address) % SPECIES.length];
+}
+
+export function floatPeriod(species, speed = "normal") {
+  return (40 + [...species].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 26) * 800 * (speed === "slow" ? 2 : 1);
+}
+
+export function surfaceGeometry(width) {
+  return { tileWidth: 400, height: 48, count: Math.ceil(width / 400) + 1, travel: 40 };
+}
+
+export function floatingGeometry(width, height, address, children, speed = "normal") {
+  const seed = hashFor(address);
+  const leaderWidth = Math.min(156, width);
+  const stacked = width < 260;
+  const columns = Math.max(1, Math.min(3, Math.floor((stacked ? width : width - leaderWidth - 8) / 100)));
+  const broodWidth = Math.max(0, Math.min(children, columns) * 100 - 4);
+  const broodHeight = Math.ceil(children / columns) * 126;
+  const w = children ? (stacked ? Math.max(leaderWidth, broodWidth) : leaderWidth + 8 + broodWidth) : leaderWidth;
+  const h = children ? (stacked ? 186 + broodHeight : Math.max(178, broodHeight)) : 178;
+  const dx = Math.max(0, width - w);
+  const dy = Math.max(0, height - h);
+  const left = dx * (seed % 13) / 60;
+  const right = dx * (0.8 + ((seed >>> 4) % 13) / 60);
+  const top = dy * ((seed >>> 8) % 16) / 60;
+  const bottom = dy * (0.75 + ((seed >>> 12) % 16) / 60);
+  return { width: w, height: h, leaderWidth, broodWidth, stacked, left, right,
+    top: seed % 2 ? bottom : top, bottom: seed % 2 ? top : bottom,
+    x: dx * ((seed >>> 16) % 101) / 100, y: dy * ((seed >>> 20) % 101) / 100,
+    period: floatPeriod(speciesFor(address), speed) };
 }
 
 export function schoolGeometry(width, height, count, immersive) {
@@ -37,11 +70,11 @@ export function schoolFamilies(school, terminals) {
   return school.filter(agent => families.has(agent.address)).map(agent => families.get(agent.address));
 }
 
-export function fishAsset(agent, paused, turning, speciesAddress = agent.address) {
+export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, speed = "normal") {
   const species = speciesFor(speciesAddress);
   if (agent.status === "done") return `${species}-gold.png`;
   if (paused || agent.status === "blocked") return `${species}.png`;
-  return `${species}-${turning ? "swim" : "glide"}.webp`;
+  return `${species}-${floating ? "float-" : ""}${turning ? "swim" : "glide"}${floating && speed === "slow" ? "-slow" : ""}.webp`;
 }
 
 export function newCompletions(previous, school) {

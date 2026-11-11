@@ -37,8 +37,29 @@ class AnimationTests(unittest.TestCase):
             with Image.open(path.with_suffix('.png')) as poster:
                 self.assertEqual(poster.tobytes(), first.tobytes())
 
+    def test_floating_clips_change_facing_without_baking_in_travel(self):
+        files = list((ROOT / 'mods/aquarium/assets').glob('*-float-swim.webp'))
+        self.assertEqual(len(files), 25)
+        for path in files:
+            species = path.name.removesuffix('-float-swim.webp')
+            expected_period = (40 + sum(map(ord, species)) % 26) * 800
+            normal = (path, path.with_name(path.name.replace('-swim', '-glide')))
+            for variant, multiplier in [(p, 1) for p in normal] + [(p.with_name(p.name.replace('.webp', '-slow.webp')), 2) for p in normal]:
+                with Image.open(variant) as clip:
+                    self.assertTrue(clip.is_animated)
+                    self.assertEqual(clip.size, (96, 96))
+                    self.assertEqual(clip.info['loop'], 0)
+                    duration = 0
+                    for i in range(clip.n_frames):
+                        clip.seek(i)
+                        clip.load()
+                        duration += clip.info['duration']
+                    self.assertEqual(duration, expected_period * multiplier)
+                    if '-glide' in variant.name:
+                        self.assertTrue(2 <= clip.n_frames <= 8)
+
     def test_all_twenty_five_species_have_valid_native_animations(self):
-        files = list((ROOT / 'mods/aquarium/assets').glob('*-swim.webp'))
+        files = [p for p in (ROOT / 'mods/aquarium/assets').glob('*-swim.webp') if '-float-' not in p.name]
         self.assertEqual(len(files), 25)
         for path in files:
             for variant in (path, path.with_name(path.name.replace('-swim', '-glide'))):
