@@ -34,8 +34,13 @@ function fixture(count, nested, free, hidden = false) {
     status: ['working', 'idle', 'blocked', 'done'][i % 4], name: `Fish ${i}`,
   });
   const listed = hidden ? school.filter((_, i) => i % 10 === 0) : school;
-  let now = 10000, pending;
-  const cx = { spawn() {}, notify() {}, timer: { after(delay, callback) { const task = { delay, callback, cancel() { if (pending === task) pending = null; } }; pending = task; return task; } } };
+  let now = 10000;
+  const pending = new Set();
+  const cx = { spawn() {}, notify() {}, timer: { after(delay, callback) {
+    const task = { due: now + delay, callback, cancel() { pending.delete(task); } };
+    pending.add(task);
+    return task;
+  } } };
   const factory = kind => (...args) => element(kind, args);
   const widget = kind => ({ new: factory(kind) });
   const Aquarium = runInNewContext(source.replace(/^import .*;\n/gm, '').replace('export default class Aquarium', 'globalThis.Aquarium = class Aquarium') + '\nAquarium;', {
@@ -46,7 +51,15 @@ function fixture(count, nested, free, hidden = false) {
     setShared() {}, run() {}, appWindow: () => ({ active: true }), window: { viewport_size: () => ({ width: 900, height: 500 }) }, Date: { now: () => now },
   });
   const view = new Aquarium(); view.init({}, cx);
-  return { view, cx, listed, school, terminals, render() { nodes = 0; const tree = view.render(cx); return { tree, nodes }; }, tick() { if (pending) { now += pending.delay; const task = pending; pending = null; task.callback(cx); } } };
+  return { view, cx, listed, school, terminals, pending, render() { nodes = 0; const tree = view.render(cx); return { tree, nodes }; }, tick() {
+    let next;
+    for (const task of pending) if (!next || task.due < next.due) next = task;
+    if (!next) return false;
+    pending.delete(next);
+    now = next.due;
+    next.callback(cx);
+    return true;
+  } };
 }
 if (process.argv.includes('--self-check')) {
   const f = fixture(20, true, true, true);
@@ -60,12 +73,30 @@ if (process.argv.includes('--self-check')) {
   assert.ok(f.view.motion.has('orphan'), 'orphan must be an independent family');
   assert.equal(f.view.motion.size, 3);
   f.tick(); f.view.stopMotion(); assert.equal(f.view.motionDue, Infinity);
-  console.log('self-check: 2 listed roots + 18 hidden children + independent raw orphan rendered; scheduler cancelled');
+  const concurrent = fixture(8, false, true);
+  concurrent.render(); // Listed t3/t7 are done; working roots also schedule motion.
+  const firstExpiry = concurrent.view.shimmers.get('t3');
+  const secondExpiry = concurrent.view.shimmers.get('t7');
+  assert.ok(concurrent.pending.has(firstExpiry));
+  assert.ok(concurrent.pending.has(secondExpiry));
+  assert.ok(concurrent.pending.has(concurrent.view.motionTask));
+  assert.equal(concurrent.pending.size, 3);
+  firstExpiry.cancel();
+  assert.ok(concurrent.pending.has(secondExpiry), 'one cancellation must not drop another expiry');
+  assert.ok(concurrent.tick(), 'earliest motion deadline must dispatch');
+  assert.ok(concurrent.pending.has(secondExpiry), 'motion dispatch must retain expiry');
+  concurrent.view.motionTask.cancel();
+  assert.equal(concurrent.pending.size, 1, 'motion cancellation must retain only the uncancelled expiry');
+  assert.ok(concurrent.tick());
+  assert.ok(!concurrent.view.shimmers.has('t7'), 'remaining expiry callback must execute');
+  assert.equal(concurrent.tick(), false, 'empty queue must not claim a dispatch');
+  concurrent.view.stopMotion();
+  console.log('self-check: hidden descendants/orphan retained; concurrent shimmer and motion deadlines dispatch and cancel independently');
   process.exit(0);
 }
 const repeats = 7, iterations = 100, warmup = 30;
 const hashes = Object.fromEntries(['main', 'model', 'motion'].map(name => [name, createHash('sha256').update(readFileSync(new URL(`../mods/aquarium/${name}.js`, import.meta.url))).digest('hex')]));
-console.log(JSON.stringify({ metadata: { date: new Date().toISOString(), node: process.version, v8: process.versions.v8, os: `${platform()} ${release()}`, cpu: cpus()[0].model, cores: cpus().length, revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: new URL('../', import.meta.url), encoding: 'utf8' }).trim(), hashes, repeats, iterations, warmup, size: '900x500', units: 'milliseconds per call', scope: 'Node source descriptions with proxy builders; no native materialization, layout, image decode or paint' } }));
+console.log(JSON.stringify({ metadata: { date: new Date().toISOString(), node: process.version, v8: process.versions.v8, os: `${platform()} ${release()}`, cpu: cpus()[0].model, cores: cpus().length, revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: new URL('../', import.meta.url), encoding: 'utf8' }).trim(), hashes, repeats, iterations, warmup, size: '900x500', units: 'milliseconds per call', scope: 'Node source descriptions with proxy builders; scheduler samples include synthetic queue selection plus dispatched callbacks (including early shimmer expiry); no native materialization, layout, image decode or paint' } }));
 for (const count of [0, 100, 250]) for (const shape of ['flat', 'nested', 'hidden']) for (const free of [false, true]) {
   const f = fixture(count, shape !== 'flat', free, shape === 'hidden');
   const initial = f.render();
@@ -82,7 +113,8 @@ for (const count of [0, 100, 250]) for (const shape of ['flat', 'nested', 'hidde
   const discovered = model.schoolAgents(f.listed, f.terminals);
   const discovery = measure(() => model.schoolAgents(f.listed, f.terminals));
   const families = measure(() => model.schoolFamilies(discovered, f.terminals));
-  const tick = measure(() => f.tick());
+  // Skip non-motion cases; never report empty tick overhead as callback cost.
+  const tick = free && count > 0 ? measure(() => assert.ok(f.tick(), 'scheduler sample requires a dispatched callback')) : null;
   console.log(JSON.stringify({ count, shape, listed: f.listed.length, discovered: discovered.length, discovery, arrangement: free ? 'free' : 'organized', nodes: f.render().nodes, families: f.view.motion.size, render, grouping: families, scheduler: tick }));
   f.view.stopMotion();
 }
