@@ -59,7 +59,7 @@ export default class Aquarium extends View {
     for (const { leader, layout: g } of families) {
       addresses.add(leader.address);
       const active = enabled && leader.status !== "blocked" && leader.status !== "done" && (g.maxX > 0 || g.maxY > 0);
-      const key = [g.width, g.height, g.maxX, g.maxY, active, speed, soft].join(":");
+      const key = [g.width, g.height, g.maxX, g.maxY, g.top, active, speed, soft].join(":");
       const previous = this.motion.get(leader.address);
       if (previous?.key === key) continue;
       this.motion.set(leader.address, { key, geometry: g, speed, soft,

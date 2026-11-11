@@ -88,6 +88,35 @@ test('resize clamps the baseline; departed families and close cancel pending wor
   assert.equal(f.cx.notifications, notifications);
 });
 
+test('departing oversized family re-primes a reassigned band from the interpolated local point', () => {
+  const f = fixture();
+  // Two oversized families can still move horizontally within their own bands.
+  const local = { ...g, height: 1000, maxY: 0, y: 0 };
+  const first = { leader: { address: 'first', status: 'working' }, layout: { ...local, top: 0 } };
+  const second = { leader: { address: 'second', status: 'working' }, layout: { ...local, top: 1008 } };
+  f.sync(true, [first, second]);
+  f.fire(250);
+  const before = f.view.motion.get('second');
+  assert.equal(before.state.phase, 'moving');
+  const stale = f.tasks.at(-1);
+  f.clock.now = 4250;
+  const expected = motion.positionAt(before.state, f.clock.now);
+  assert.notDeepEqual(expected, before.state.to);
+  f.sync(true, [{ ...second, layout: { ...local, top: 0 } }]);
+  const after = f.view.motion.get('second');
+  assert.equal(f.view.motion.size, 1);
+  assert.equal(after.state.phase, 'ready');
+  assert.deepEqual(after.state.from, expected);
+  assert.deepEqual(after.state.to, expected);
+  assert.equal(after.version, before.version + 1);
+  assert.equal(after.geometry.top, 0);
+  assert.ok(stale.cancelled);
+  const notifications = f.cx.notifications;
+  f.fire(99999, stale);
+  assert.equal(f.view.motion.get('second'), after);
+  assert.equal(f.cx.notifications, notifications);
+});
+
 test('inactive window parks without a replacement task, then can restart', () => {
   const f = fixture();
   f.sync();

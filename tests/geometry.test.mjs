@@ -92,8 +92,10 @@ test('actual render preserves all child hit targets, paused offsets and resize i
     return node;
   }
   let free = true;
+  const commands = [];
   const env = { ...model, View: class {}, agents: () => agents, terminals: () => terminals,
     theme: () => ({}), props: () => ({}), focused: () => null, shared: key => key === 'aquarium.free' ? free : undefined,
+    run: (command, args) => commands.push({ command, args }),
     appWindow: () => ({ active: true }), window: { viewport_size: () => ({ width: 220, height: 240 }) } };
   for (const name of ['div', 'image', 'h_flex', 'v_flex']) env[name] = () => element();
   for (const name of ['Button', 'Switch', 'Radio', 'RadioGroup', 'Popover']) env[name] = { new: element };
@@ -113,6 +115,9 @@ test('actual render preserves all child hit targets, paused offsets and resize i
     for (const n of fish) {
       assert.equal(typeof n.values.on_click, 'function');
       assert.ok(n.values.accessibility_label.includes('Open agent'));
+      n.values.on_click();
+      assert.equal(commands.at(-1).command, 'agent.focus');
+      assert.equal(commands.at(-1).args.terminal, n.values.id.slice('fish-'.length));
     }
     assert.ok(nodes.find(n => n.values.id === 'school-scroll').values.overflow_scrollbar !== undefined);
     return nodes.filter(n => n.values.id?.startsWith('family-')).map(n => n.values);
