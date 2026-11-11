@@ -11,6 +11,35 @@ const families = counts => counts.map((count, i) => ({
   children: Array.from({ length: count }, (_, j) => ({ agent: { address: `child-${i}-${j}` } })),
 }));
 
+test('short core IDs start spread deterministically without changing species or motion seeds', () => {
+  const species = ['moray_eel', 'seahorse', 'ocean_sunfish', 'flounder', 'silver_arowana', 'clownfish', 'blue_tang', 'betta', 'koi'];
+  const addresses = species.map((_, i) => `t${i + 1}`);
+  const starts = addresses.map((address, i) => {
+    const g = floatingGeometry(868, 382, address, 0);
+    assert.deepEqual(g, floatingGeometry(868, 382, address, 0));
+    assert.equal(g.seed, 3645 + i);
+    assert.equal(model.speciesFor(address), species[i]);
+    assert.ok(g.x >= 0 && g.x <= g.maxX);
+    assert.ok(g.y >= 0 && g.y <= g.maxY);
+    return g;
+  });
+  assert.equal(new Set(starts.map(g => g.x)).size, 9);
+  assert.equal(new Set(starts.map(g => g.y)).size, 9);
+  for (const axis of ['x', 'y']) {
+    const fractions = starts.map(g => g[axis] / g[axis === 'x' ? 'maxX' : 'maxY']);
+    assert.ok(Math.max(...fractions) - Math.min(...fractions) > 0.5, `${axis} spans half the available range`);
+  }
+  for (const address of addresses) {
+    for (const [width, height, children] of [[104, 178, 0], [260, 178, 30], [868, 382, 3]]) {
+      const g = floatingGeometry(width, height, address, children);
+      assert.ok(g.x >= 0 && g.x <= g.maxX);
+      assert.ok(g.y >= 0 && g.y <= g.maxY);
+      if (!g.maxX) assert.equal(g.x, 0);
+      if (!g.maxY) assert.equal(g.y, 0);
+    }
+  }
+});
+
 test('oversized families have disjoint full movement envelopes and scroll extent', () => {
   for (const width of [104, 259, 260, 363, 364, 800]) {
     for (const height of [178, 300, 800]) {

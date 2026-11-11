@@ -17,6 +17,14 @@ export function surfaceGeometry(width) {
   return { tileWidth: 400, height: 48, count: Math.ceil(width / 400) + 1, travel: 40 };
 }
 
+// Mix only placement coordinates; retain the original species/motion seed.
+function placementFraction(seed, salt) {
+  let mixed = Math.imul(seed ^ salt, 1664525) + 1013904223;
+  mixed = Math.imul(mixed ^ (mixed >>> 16), 2246822507);
+  mixed = Math.imul(mixed ^ (mixed >>> 13), 3266489909);
+  return ((mixed ^ (mixed >>> 16)) >>> 0) / 4294967296;
+}
+
 export function floatingGeometry(width, height, address, children) {
   const seed = hashFor(address);
   const leaderWidth = Math.min(156, width);
@@ -29,7 +37,7 @@ export function floatingGeometry(width, height, address, children) {
   const dx = Math.max(0, width - w);
   const dy = Math.max(0, height - h);
   return { width: w, height: h, leaderWidth, broodWidth, stacked, seed, maxX: dx, maxY: dy,
-    x: dx * ((seed >>> 16) % 101) / 100, y: dy * ((seed >>> 20) % 101) / 100 };
+    x: dx * placementFraction(seed, 0x9e3779b9), y: dy * placementFraction(seed, 0x85ebca6b) };
 }
 
 // Keep ordinary whole-tank paths. Separate tall broods and fitting groups
