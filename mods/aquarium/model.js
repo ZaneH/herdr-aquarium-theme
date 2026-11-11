@@ -54,9 +54,30 @@ export function schoolGeometry(width, height, count, immersive) {
     height: immersive ? Math.max(170, height / rows) : 155 };
 }
 
+// Listed agents retain host-owned done/seen state and location. Background
+// children use the native sidebar convention: raw done is idle, error blocked.
+export function schoolAgents(listed, allTerminals) {
+  const school = new Map(listed.map(agent => [agent.address, agent]));
+  const raw = new Map(allTerminals.map(terminal => [terminal.address, terminal]));
+  const statuses = { working: "working", blocked: "blocked", idle: "idle", done: "idle", error: "blocked" };
+  for (const terminal of raw.values()) {
+    if (school.has(terminal.address) || !terminal.parent || terminal.state !== "live" ||
+        !terminal.program?.agent || terminal.program.shell || !Object.hasOwn(statuses, terminal.status)) continue;
+    school.set(terminal.address, {
+      address: terminal.address, status: statuses[terminal.status], program: terminal.program,
+      title: terminal.name || terminal.template || terminal.title || terminal.program.name || terminal.address,
+      // No pane, space or tab is invented for a background terminal.
+    });
+  }
+  return [...school.values()];
+}
+
 export function schoolFamilies(school, terminals) {
   const byAddress = new Map(school.map(agent => [agent.address, agent]));
-  const parents = new Map(terminals.map(terminal => [terminal.address, terminal.parent]));
+  const parents = new Map(terminals.map(terminal => [terminal.address,
+    // Only traverse verified agent nodes; never bridge a dead/build process.
+    terminal.state === "finished" || terminal.program?.shell || terminal.program?.agent === false
+      ? null : terminal.parent]));
   const families = new Map();
   for (const agent of school) {
     let leader = agent;

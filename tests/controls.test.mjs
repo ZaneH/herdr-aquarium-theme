@@ -29,7 +29,7 @@ function fixture(settings = new Map(), immersive = false, viewport = { width: 22
     props: () => ({ immersive }), shared: key => settings.get(key),
     setShared: (key, value) => settings.set(key, value),
     window: { viewport_size: () => viewport }, appWindow: () => ({ active: true }),
-    newCompletions: () => [], schoolFamilies: () => [], schoolGeometry: () => ({ lane: 200 }),
+    newCompletions: () => [], schoolAgents: listed => listed, schoolFamilies: () => [], schoolGeometry: () => ({ lane: 200 }),
     surfaceGeometry: () => ({ count: 0 }),
     floatingSchoolGeometry: () => ({ layouts: [], height: 178 }),
   };

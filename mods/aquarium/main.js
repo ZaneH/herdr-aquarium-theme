@@ -2,7 +2,7 @@ import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, Button, Switch, Radio, RadioGroup, Popover } from "gpui-base";
 import { agents, terminals, theme, run, shared, setShared, props, focused, nextCommand, window as appWindow } from "herdr";
 import { parkMotion, startMotion, advanceMotion } from "./motion.js";
-import { detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolFamilies, surfaceGeometry } from "./model.js";
+import { detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
 
 const ART = "mods/aquarium/assets";
 const statusLabel = { working: "Working", blocked: "Needs you", done: "Finished", idle: "Resting" };
@@ -105,9 +105,11 @@ export default class Aquarium extends View {
   render(cx) {
     const t = theme();
     const immersive = Boolean(props()?.immersive);
-    const school = agents();
+    const all = terminals();
+    const school = schoolAgents(agents(), all);
+    const focusedAgent = school.find(a => a.address === focused()?.agent);
     if (props()?.terminal) {
-      const agent = school.find(a => a.address === focused()?.agent);
+      const agent = focusedAgent;
       return h_flex().size_full().px(14).gap(12).items_center().bg(t.chrome)
         .child(this.button("back-to-water", "Back to aquarium", () => {
           run("layout.select", { stack: "aquarium-view", child: "tank-view" });
@@ -117,7 +119,6 @@ export default class Aquarium extends View {
         .child(this.button("back-to-workspace", "Workspace", () => { this.stopMotion(); run("layout.switch", { name: "aquarium" }); }, 1));
     }
 
-    const all = terminals();
     const paused = shared("aquarium.paused") !== false;
     const turning = shared("aquarium.turning") !== false;
     const bubbles = shared("aquarium.bubbles") !== false;
@@ -141,7 +142,7 @@ export default class Aquarium extends View {
       if (this.previous.get(address) !== "done") this.shimmers.delete(address);
     }
     const selected = school.find(a => a.address === this.hovered)
-      ?? school.find(a => a.focused) ?? school[0];
+      ?? focusedAgent ?? school.find(a => a.focused) ?? school[0];
     const detail = selected ? detailsFor(selected, all.find(a => a.address === selected.address)) : null;
     const families = schoolFamilies(school, all);
     const geometry = schoolGeometry(Math.max(120, this.size.width - 32), Math.max(170, this.size.height - 140), families.length, immersive);
@@ -295,7 +296,7 @@ export default class Aquarium extends View {
       .child(tank)
       .child(v_flex().h(58).flex_none().px(18).py(7).gap(3).bg(t.chrome).border_t(1).border_color(t.border)
         .child(div().text_size(12).font_semibold().truncate().child(selected
-          ? `${selected.program.name}  /  ${selected.space_name}  /  ${selected.tab_name}`
+          ? [selected.program.name, selected.space_name, selected.tab_name, !selected.space_name && !selected.tab_name ? "Scope: not reported" : null].filter(Boolean).join("  /  ")
           : "Your agents, a little more alive."))
         .child(div().text_size(11).text_color(t.muted).truncate().child(detail
           ? detail.join("   •   ")

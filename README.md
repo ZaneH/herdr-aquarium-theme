@@ -59,6 +59,8 @@ The source sheets are **camera rotations, not fin-flapping animation**. The resu
 
 ### Telemetry limitation
 
+Live status-reporting background child agents join their verified parent’s fish family even without a pane; shell/build subprocesses are not added, and surviving or unknown-parent children remain independent without invented workspace scope. Like Herdr’s native child list, raw child `done` displays as resting (not an unseen completion), and `error` as needing you.
+
 The installed Herdr API does **not** document cache, context, model, or thinking telemetry. Cache and thinking show **not reported**. Nothing is inferred from agent status, fabricated, or scraped from terminal output/private session files. A future agent-side reporting integration can extend `mods/aquarium/model.js`.
 
 ## Could this use the 3D models?
