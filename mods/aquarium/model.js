@@ -13,15 +13,11 @@ export function speciesFor(address) {
   return SPECIES[hashFor(address) % SPECIES.length];
 }
 
-export function floatPeriod(species, speed = "normal") {
-  return (40 + [...species].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 26) * 800 * (speed === "slow" ? 2 : 1);
-}
-
 export function surfaceGeometry(width) {
   return { tileWidth: 400, height: 48, count: Math.ceil(width / 400) + 1, travel: 40 };
 }
 
-export function floatingGeometry(width, height, address, children, speed = "normal") {
+export function floatingGeometry(width, height, address, children) {
   const seed = hashFor(address);
   const leaderWidth = Math.min(156, width);
   const stacked = width < 260;
@@ -32,14 +28,8 @@ export function floatingGeometry(width, height, address, children, speed = "norm
   const h = children ? (stacked ? 186 + broodHeight : Math.max(178, broodHeight)) : 178;
   const dx = Math.max(0, width - w);
   const dy = Math.max(0, height - h);
-  const left = dx * (seed % 13) / 60;
-  const right = dx * (0.8 + ((seed >>> 4) % 13) / 60);
-  const top = dy * ((seed >>> 8) % 16) / 60;
-  const bottom = dy * (0.75 + ((seed >>> 12) % 16) / 60);
-  return { width: w, height: h, leaderWidth, broodWidth, stacked, left, right,
-    top: seed % 2 ? bottom : top, bottom: seed % 2 ? top : bottom,
-    x: dx * ((seed >>> 16) % 101) / 100, y: dy * ((seed >>> 20) % 101) / 100,
-    period: floatPeriod(speciesFor(address), speed) };
+  return { width: w, height: h, leaderWidth, broodWidth, stacked, seed, maxX: dx, maxY: dy,
+    x: dx * ((seed >>> 16) % 101) / 100, y: dy * ((seed >>> 20) % 101) / 100 };
 }
 
 export function schoolGeometry(width, height, count, immersive) {
@@ -70,11 +60,12 @@ export function schoolFamilies(school, terminals) {
   return school.filter(agent => families.has(agent.address)).map(agent => families.get(agent.address));
 }
 
-export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, speed = "normal") {
+export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, facing = "right") {
   const species = speciesFor(speciesAddress);
+  if (floating) return `${species}${facing === "left" ? "-left" : ""}${agent.status === "done" ? "-gold" : ""}.png`;
   if (agent.status === "done") return `${species}-gold.png`;
   if (paused || agent.status === "blocked") return `${species}.png`;
-  return `${species}-${floating ? "float-" : ""}${turning ? "swim" : "glide"}${floating && speed === "slow" ? "-slow" : ""}.webp`;
+  return `${species}-${turning ? "swim" : "glide"}.webp`;
 }
 
 export function newCompletions(previous, school) {

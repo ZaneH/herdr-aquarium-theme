@@ -2,7 +2,7 @@
 
 Your coding agents, as a school of fish. Two native [Herdr GUI](https://herdr.dev) layouts: a practical workspace and a quiet, immersive tank. Both preserve the standard left sidebar.
 
-> **Draft interaction work:** tracked in [#7](https://github.com/ZaneH/herdr-aquarium-theme/issues/7). Free-floating movement has a known [backwards-facing bug (#1)](https://github.com/ZaneH/herdr-aquarium-theme/issues/1) and is not accepted or ready to merge. Passing geometry/render tests does not establish correct movement.
+> **Draft interaction work:** tracked in [#7](https://github.com/ZaneH/herdr-aquarium-theme/issues/7). The waypoint replacement for the [backwards-facing bug (#1)](https://github.com/ZaneH/herdr-aquarium-theme/issues/1) still requires live acceptance and is not ready to merge. Passing geometry/render tests does not establish correct movement.
 
 ![Immersive aquarium in Herdr](preview.png)
 
@@ -32,14 +32,14 @@ All **25 species** from [Polyy.AI's 2D Fish Sprites Pack](https://polyyai.itch.i
 There is no tank heading or toolbar full of settings: just the layout switch and **Options ▾**. The native dropdown uses switches and radio buttons, dismisses on outside press/Escape, and keeps settings together.
 
 - **Animate aquarium:** opt-in; off on a fresh installation. Turning it off stops fish, bubbles, surface waves, attention bobbing, and shimmer.
-- **Fish arrangement — Free-floating / Organized:** free-floating is the default. Families drift through the tank on compound, deterministic curves instead of a single left/right ping-pong loop. Organized preserves the original fixed lanes and 12-second routes for a more structured view.
-- **Free-floating speed — Slow / Normal:** Slow is the default. Slow has a 64–104-second primary cycle depending on species; Normal is twice as fast. Smaller superimposed curves vary the course gently, without random darting. This setting affects Free-floating, not Organized's baked routes. Click targets move with the fish and stay comfortably larger than the artwork. Paths can cross: choose Organized for dense schools.
-- **Turning — Smooth / Instant:** smooth changes use the source rotation angles; instant changes use two opposite views. Floating clips only supply facing; native GPUI moves the whole clickable family.
+- **Fish arrangement — Free-floating / Organized:** free-floating is the default. Families follow nearby deterministic waypoints with gentle course changes instead of a single left/right ping-pong loop. Organized preserves the original fixed lanes and 12-second routes for a more structured view.
+- **Free-floating speed — Slow / Normal:** Slow is the default. Slow travels at up to about 12 px/sec in eight-second legs; Normal uses about 24 px/sec in six-second legs. Bounds can shorten a leg. Course changes are deterministic, without random darting. This setting affects Free-floating, not Organized's baked routes. Click targets move with the fish and stay comfortably larger than the artwork. Paths can cross: choose Organized for dense schools.
+- **Turning — Smooth / Instant:** free-floating fish stop before reversing. Smooth briefly fades out, swaps directional sprites while invisible, then fades in before traveling; Instant swaps while stationary. Facing comes from the actual next waypoint, not a separate image clock. Organized retains source-angle turns.
 - **Bubbles:** two original aerator streams rise along the sides. Paused mode uses still posters.
 - **Surface waves:** a translucent surface ribbon slowly undulates across the top. Seamless fixed-size SVG tiles overscan both ends, so movement never exposes a shrinking image edge. Paused mode leaves it still.
 
-All animation frames are native GPUI/image playback—not per-frame JavaScript, polling, or animation timers.
-Working and idle agents move when enabled. Blocked fish stop traveling, appear larger/closer to the glass, gently bob in a coral halo, and say **Needs you**. Done fish turn gold and show a brief three-second sparkle when first observed entering done with motion enabled; they stay gold until Herdr marks them seen/idle. The sparkle is native opacity animation, with one timer solely to remove it.
+All animation frames are native GPUI/image playback—not per-frame JavaScript. One cancellable view-level timer advances free-floating waypoints and stationary turn phases; native transitions draw the intervening frames.
+Working and idle agents move when enabled. Blocked/done family leaders stop the whole family; descendants stay with their parent while retaining their own status cues. Blocked fish appear larger/closer to the glass, gently bob in a coral halo, and say **Needs you**. Done fish turn gold and show a brief three-second sparkle when first observed entering done with motion enabled; they stay gold until Herdr marks them seen/idle. The sparkle is native opacity animation, with one timer solely to remove it.
 Preferences are shared by both modes and saved by Herdr. Motion is opt-in instead of detecting OS reduced-motion settings, which this API does not expose.
 
 Optional command equivalents (when the aquarium is visible):
@@ -92,9 +92,9 @@ herdr-app status
 herdr-app shot /tmp/aquarium.png
 ```
 
-Node tests cover species/assets, missing telemetry, state-dependent motion, completion-entry detection, parent/descendant grouping (including missing parents and cycles), inherited species, bounded free-floating geometry, speed periods, full-width wave coverage, and empty/narrow/crowded geometry. Python checks verify the complete organized round-trip route, all 30 angles, floating facing clips at both speeds, and transparent bubble clips/posters. Native rendering and real two-agent playback have been checked in the app; the immersive terminal and return views render without app errors. Full keyboard, empty/crowded UI, and every live status transition still need hands-on acceptance testing. No large-school CPU/GPU/memory benchmark yet; animated images use more decoded memory than their compressed file size. Pause motion for the lightest mode. All four statuses and nested fish families also pass an isolated native render check using test fixtures; actual live blocked/done transitions and agent-spawn lifecycles still need hands-on testing.
+Node tests cover species/assets, missing telemetry, completion-entry detection, parent/descendant grouping, bounded geometry, full-width waves, heading versus displacement at both speeds/turn modes, stationary turns, pause/resize clamping, late callbacks, and scheduler cancellation/cleanup. Python checks verify organized routes and angles, all 25 static directional/gold sprite sets, bubble clips/posters, and seamless SVG tile geometry. Earlier native rendering and two-agent playback checks covered the previous movement implementation; they do not certify the new waypoint scheduler. The immersive terminal and return views previously rendered without app errors. The replacement still needs complete live movement/turn/pause/navigation checks. Full keyboard, empty/crowded UI, and every live status transition still need hands-on acceptance testing. No large-school CPU/GPU/memory benchmark yet; animated images use more decoded memory than their compressed file size. Pause motion for the lightest mode. All four statuses and nested fish families also pass an isolated native render check using test fixtures; actual live blocked/done transitions and agent-spawn lifecycles still need hands-on testing.
 
-The repo's runtime assets total about 18 MB; the original 49 MB pack and build dependencies are not vendored. No runtime subprocesses, network requests, web views, polling, or terminal scraping.
+The repo's runtime assets total about 15 MB; the original 49 MB pack and build dependencies are not vendored. No runtime subprocesses, network requests, web views, per-frame JavaScript, or terminal scraping.
 
 Regenerate the assets from the source pack ZIP:
 

@@ -1,6 +1,7 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, Button, Switch, Radio, RadioGroup, Popover } from "gpui-base";
-import { agents, terminals, theme, run, shared, setShared, props, focused, nextCommand } from "herdr";
+import { agents, terminals, theme, run, shared, setShared, props, focused, nextCommand, window as appWindow } from "herdr";
+import { parkMotion, startMotion, advanceMotion } from "./motion.js";
 import { detailsFor, schoolGeometry, floatingGeometry, fishAsset, newCompletions, schoolFamilies, surfaceGeometry } from "./model.js";
 
 const ART = "mods/aquarium/assets";
@@ -13,6 +14,10 @@ export default class Aquarium extends View {
     this.previous = new Map();
     this.shimmers = new Map();
     this.optionsOpen = false;
+    this.motion = new Map();
+    this.motionDue = Infinity;
+    this.motionGeneration = 0;
+    this.suspended = false;
     cx.spawn(async cx => {
       for (;;) {
         const command = await nextCommand();
@@ -22,7 +27,63 @@ export default class Aquarium extends View {
         if (command === "water") setShared("aquarium.water", shared("aquarium.water") === false);
         if (command === "arrangement") setShared("aquarium.free", shared("aquarium.free") === false);
         if (command === "options") { this.optionsOpen = !this.optionsOpen; cx.notify(); }
+        if (command === "resume") { this.suspended = false; cx.notify(); }
       }
+    });
+  }
+
+  stopMotion() {
+    this.motionTask?.cancel();
+    this.motionTask = null;
+    this.motionDue = Infinity;
+    this.motionGeneration++;
+    const now = Date.now();
+    for (const entry of this.motion.values()) {
+      entry.state = parkMotion(entry.geometry, entry.state, now);
+      entry.key = null;
+      entry.version++;
+    }
+  }
+
+  async close() { this.stopMotion(); }
+
+  syncMotion(families, enabled, speed, soft, cx) {
+    const now = Date.now();
+    const addresses = new Set();
+    for (const { leader, layout: g } of families) {
+      addresses.add(leader.address);
+      const active = enabled && leader.status !== "blocked" && leader.status !== "done" && (g.maxX > 0 || g.maxY > 0);
+      const key = [g.width, g.height, g.maxX, g.maxY, active, speed, soft].join(":");
+      const previous = this.motion.get(leader.address);
+      if (previous?.key === key) continue;
+      this.motion.set(leader.address, { key, geometry: g, speed, soft,
+        version: (previous?.version ?? 0) + 1,
+        state: active ? startMotion(g, previous?.state, now) : parkMotion(g, previous?.state, now) });
+    }
+    for (const address of this.motion.keys()) if (!addresses.has(address)) this.motion.delete(address);
+    this.scheduleMotion(cx);
+  }
+
+  scheduleMotion(cx) {
+    const due = Math.min(Infinity, ...[...this.motion.values()].map(entry => entry.state.due));
+    if (due === this.motionDue) return;
+    this.motionTask?.cancel();
+    this.motionTask = null;
+    this.motionDue = due;
+    const generation = ++this.motionGeneration;
+    if (!Number.isFinite(due)) return;
+    // Route decisions wake infrequently; native transitions draw every intervening frame.
+    this.motionTask = cx.timer.after(Math.max(1, due - Date.now()), cx => {
+      if (generation !== this.motionGeneration) return;
+      this.motionTask = null;
+      this.motionDue = Infinity;
+      if (!appWindow().active) { this.stopMotion(); cx.notify(); return; }
+      const now = Date.now();
+      for (const entry of this.motion.values()) {
+        entry.state = advanceMotion(entry.state, entry.geometry, now, entry.speed, entry.soft);
+      }
+      cx.notify();
+      this.scheduleMotion(cx);
     });
   }
 
@@ -41,9 +102,12 @@ export default class Aquarium extends View {
     if (props()?.terminal) {
       const agent = school.find(a => a.address === focused()?.agent);
       return h_flex().size_full().px(14).gap(12).items_center().bg(t.chrome)
-        .child(this.button("back-to-water", "Back to aquarium", () => run("layout.select", { stack: "aquarium-view", child: "tank-view" })))
+        .child(this.button("back-to-water", "Back to aquarium", () => {
+          run("layout.select", { stack: "aquarium-view", child: "tank-view" });
+          run("aquarium.resume");
+        }))
         .child(div().flex_1().truncate().text_size(13).text_color(t.foreground).child(agent?.title || "Agent terminal"))
-        .child(this.button("back-to-workspace", "Workspace", () => run("layout.switch", { name: "aquarium" }), 1));
+        .child(this.button("back-to-workspace", "Workspace", () => { this.stopMotion(); run("layout.switch", { name: "aquarium" }); }, 1));
     }
 
     const all = terminals();
@@ -77,7 +141,11 @@ export default class Aquarium extends View {
     const lane = geometry.lane;
     const open = a => {
       run("agent.focus", { terminal: a.address });
-      if (immersive) run("layout.select", { stack: "aquarium-view", child: "terminal-view" });
+      if (immersive) {
+        this.suspended = true;
+        this.stopMotion();
+        run("layout.select", { stack: "aquarium-view", child: "terminal-view" });
+      }
     };
 
     let tabIndex = 2;
@@ -92,12 +160,20 @@ export default class Aquarium extends View {
       const travelWidth = width * Math.min(1, scale / 0.6);
       const artHeight = free ? fishSize : Math.max(fishSize, travelWidth / 4);
       const haloSize = 180 * scale;
+      const motion = this.motion.get(leader.address);
+      const pose = free
+        ? div().id(`pose-${a.address}-${motion?.version}`).relative().size_full()
+          .opacity(motion?.state.opacity ?? 1)
+          .when(turning && !paused, el => el.transition("opacity", 200))
+          .children(["right", "left"].map(facing => image(`${ART}/${fishAsset(a, paused, turning, leader.address, true, facing)}`)
+            .absolute().top(0).left(0).size_full().opacity((motion?.state.face ?? "right") === facing ? 1 : 0)))
+        : image(`${ART}/${fishAsset(a, paused, turning, leader.address)}`).size_full();
       const fish = div().absolute().top(0).left(traveling ? (width - travelWidth) / 2 : (width - fishSize) / 2)
         .w(traveling ? travelWidth : fishSize).h(traveling ? travelWidth / 4 : fishSize)
         .when(needsYou, el => el.child(image(`${ART}/attention.svg`).id(`attention-${a.address}`)
           .absolute().top((fishSize - haloSize) / 2).left((fishSize - haloSize) / 2).size(haloSize)
           .when(!paused, halo => halo.loop("opacity", { from: 0.5, to: 1, period: 3200 }))))
-        .child(image(`${ART}/${fishAsset(a, paused, turning, leader.address, free, speed)}`).size_full())
+        .child(pose)
         .when(!paused && a.status === "done" && this.shimmers.has(a.address), el =>
           el.child(image(`${ART}/shimmer.svg`).id(`shimmer-${a.address}`).absolute()
             .top((fishSize - haloSize) / 2).left((fishSize - haloSize) / 2).size(haloSize)
@@ -153,22 +229,20 @@ export default class Aquarium extends View {
     const bodyWidth = Math.max(104, this.size.width - 32);
     const bodyHeight = Math.max(178, this.size.height - 118);
     const floats = families.map(family => ({ ...family,
-      layout: floatingGeometry(bodyWidth, bodyHeight, family.leader.address, family.children.length, speed) }));
+      layout: floatingGeometry(bodyWidth, bodyHeight, family.leader.address, family.children.length) }));
+    this.syncMotion(floats, free && !paused && !this.suspended && appWindow().active, speed, turning, cx);
     const schoolView = free
       ? div().relative().w_full().h(Math.max(bodyHeight, ...floats.map(({ layout }) => layout.height)))
         .children(floats.map(({ leader, children, layout: g }) => {
-          const drifting = !paused && leader.status !== "blocked" && leader.status !== "done";
-          const family = (g.stacked ? v_flex() : h_flex()).id(`family-${leader.address}`).absolute()
-            .left(g.x).top(g.y).w(g.width).h(g.height).gap(8).items_center().justify_center()
-            .when(drifting, el => el.loop("left", { from: g.right * 0.4, to: g.left * 0.4, period: g.period / 2 })
-              .loop("top", { from: g.bottom * 0.4, to: g.top * 0.4, period: g.period * 0.43 }))
+          const entry = this.motion.get(leader.address);
+          const m = entry.state;
+          return (g.stacked ? v_flex() : h_flex()).id(`family-${leader.address}-${entry.version}`).absolute()
+            .left(m.to.x).top(m.to.y).w(g.width).h(g.height).gap(8).items_center().justify_center()
+            .transition("left", { duration: m.phase === "moving" ? m.duration : 0, easing: "linear" })
+            .transition("top", { duration: m.phase === "moving" ? m.duration : 0, easing: "linear" })
             .child(drawFish(leader, g.leaderWidth, 1, leader))
             .when(children.length > 0, el => el.child(h_flex().w(g.broodWidth).flex_wrap().gap(4).justify_center()
               .children(children.map(({ agent, depth }) => drawFish(agent, 96, depth > 1 ? 0.48 : 0.6, leader)))));
-          return div().id(`drift-${leader.address}`).absolute().left(0).top(0).w(g.width).h(g.height)
-            .when(drifting, el => el.loop("left", { from: g.left * 0.6, to: g.right * 0.6, period: g.period })
-              .loop("top", { from: g.top * 0.6, to: g.bottom * 0.6, period: g.period * 0.73 }))
-            .child(family);
         }))
       : h_flex().flex_wrap().justify_around().items_start().children(families.map(({ leader, children }) => {
           const stacked = immersive || lane < 400;
@@ -197,7 +271,7 @@ export default class Aquarium extends View {
       .child(div().absolute().top(50).bottom(10).left(16).right(16)
         .id("school-scroll").overflow_y_scrollbar().child(schoolView))
       .child(h_flex().absolute().top(10).right(18).gap(8).items_center()
-        .child(this.button("aquarium-mode", immersive ? "Workspace" : "Immersive", () => run("layout.switch", { name: immersive ? "aquarium" : "aquarium-immersive" })))
+        .child(this.button("aquarium-mode", immersive ? "Workspace" : "Immersive", () => { this.stopMotion(); run("layout.switch", { name: immersive ? "aquarium" : "aquarium-immersive" }); }))
         .child(options))
       .when(!school.length, el => el.child(v_flex().absolute().top(90).left(24).gap(6)
         .child(div().text_size(17).child("A little quiet in here."))
