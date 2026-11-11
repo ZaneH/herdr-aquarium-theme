@@ -4,11 +4,11 @@ Your coding agents, as a school of fish. Two native [Herdr GUI](https://herdr.de
 
 > **Draft interaction work:** tracked in [#7](https://github.com/ZaneH/herdr-aquarium-theme/issues/7). The waypoint replacement for the [backwards-facing bug (#1)](https://github.com/ZaneH/herdr-aquarium-theme/issues/1) still requires live acceptance and is not ready to merge. Passing geometry/render tests does not establish correct movement.
 
-![Immersive aquarium in Herdr](preview.png)
+![Native Herdr aquarium workspace panel](preview.png)
 
-*Historical, color-graded native screenshot: cropped to the tank, midtones brightened, agent labels blurred for privacy. The surround and headings are presentation, not app UI; no fish or controls were added. The current runtime has a newer, brighter habitat palette; a fresh sanitized native capture is pending.*
+*Fresh native workspace-panel capture with five real fish and Options closed. Agent names and both details-strip lines are privacy-blurred; native colors, fish positions, status text, and controls are retained without grading or reconstruction. The surround and headings are presentation, not app UI. The panel was temporarily 500 px tall for capture, then restored to its normal 320 px.*
 
-Regenerate from the preserved sanitized input with `uv run --with pillow==11.3.0 python tools/prepare-preview.py` (build-time only). See [gallery direction and provenance](docs/gallery-direction.md).
+Regenerate from the pinned sanitized input with `uv run --with pillow==11.3.0 python tools/prepare-preview.py` (build-time only). See [gallery direction and provenance](docs/gallery-direction.md).
 
 ## Two modes
 

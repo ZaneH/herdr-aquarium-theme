@@ -2,9 +2,9 @@
 
 Two calm native Herdr layouts: a working terminal workspace beneath an aquarium, and an immersive tank that fills the workspace. Live agents become fish; the standard left sidebar remains intact.
 
-![Immersive aquarium](preview.png)
+![Native aquarium workspace panel](preview.png)
 
-This preserved historical preview is color-graded and cropped to the tank, with agent labels blurred for privacy. It predates the current brighter runtime habitat palette; a fresh sanitized native capture is pending.
+This fresh native workspace-panel preview shows five real fish with Options closed and the brighter runtime palette. Agent names and both footer lines are privacy-blurred. Native colors and fish/UI positions are preserved without grading or reconstruction; the frame is presentation only. The workspace panel was temporarily 500 px tall for capture and restored to its normal 320 px afterward. See [gallery provenance](docs/gallery-direction.md); this is not an immersive-mode capture or proof of live behavior.
 
 ## What you see
 

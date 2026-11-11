@@ -2,27 +2,31 @@
 
 Quiet space is the organizing material: the tank stays large and uninterrupted, with an even gallery margin that separates product from presentation. Meticulously crafted alignment, rather than added aquarium decoration, gives the image its finish.
 
-A pale sage surround brings daylight to the composition. A restrained global midtone lift opens the existing teal water while preserving its depth, orange fish accents, and mint controls. The grading pipeline changes only the gallery presentation, not runtime assets. This preserved historical capture predates the newer, brighter runtime habitat palette; a fresh sanitized native capture is pending.
+A pale sage surround brings daylight to the composition. The actual runtime now supplies the brighter turquoise water and mineral sand: no gallery grading is applied to this fresh native capture. Painstaking restraint keeps native colors authoritative.
 
-The original two inhabitants establish scale and rhythm. Their positions, labels, habitat, and open Options panel remain exactly where the capture placed them. Painstaking restraint means no cloned fish, synthetic telemetry, replacement controls, or decorative plants masquerading as product features.
+Five real inhabitants establish scale and rhythm: two roots and three child fish. Their positions, habitat, status captions, and closed Options control remain where the native capture placed them. No cloned fish, synthetic telemetry, replacement controls, or decorative plants masquerade as product features. Only private text was blurred before this pipeline received its input.
 
-Typography stays outside the screenshot: a short title, the repository's existing product description, and a small disclosure. The product remains the visual authority. Master-level refinement here means crisp native-resolution pixels, carefully balanced margins, and truthful hierarchy, not an invented interface.
+Typography stays outside the screenshot: a short title, the repository's existing product description, and a small disclosure. Master-level refinement means balanced margins and truthful hierarchy, not an invented interface. The existing restrained frame is reused rather than introducing a new visual design.
 
-## Source and reproduction
+## Fresh native source and reproduction
 
-- Input: `docs/preview-source.png`, byte-for-byte `preview.png` from base commit `5760cd21adfef6f3ba80277ad3045e113552542b`. Already public, cropped in-app screenshot with agent labels blurred. SHA-256: `a42938f0b68b94a14a528c9164ece2a7958a107d9487749a417bafd171c7846c`.
-- No private `/tmp/aquarium*` capture was used. No new capture or GUI session was made.
-- Run from the repository: `uv run --with pillow==11.3.0 python tools/prepare-preview.py`. Pillow is build-time only; its bundled default font avoids external font files.
-- Output: `preview.png`, 1534 × 1164 RGB PNG. Input remains 1406 × 940, unscaled and uncropped by this pipeline, at (64, 148). Each channel receives `round(255 * (v / 255) ** 0.80)`. A sage surround, soft exterior shadow, title, subtitle, and disclosure are added outside the capture. Saving strips source metadata from the output.
-- Issue #9's three comparison images were downloaded to `/tmp/issue9-ref{1,2,3}.png` and visually reviewed, alongside its older aquarium reference. They inform spacing, readable hierarchy, and restrained color only; none of their artwork, logos, or UI is reused.
-- Source licenses remain unchanged: repository MIT art/code and Polyy.AI CC0 fish; see README and `mods/aquarium/assets/LICENSE.txt`. No external font or reference artwork is vendored.
+- Input: `docs/preview-source-live.png`, 1406 × 600 RGB PNG. SHA-256: `86b6df54cc69dc3f6b2eacb198d94c7dbf48fc472d97f7882ee19f794e599003`.
+- Parent/operator captured the actual **workspace panel**, not immersive mode, after the bright habitat asset identities, placement spread, and peek changes at source revision `5a3cf63`. The native window was 2880 × 1740; the aquarium-only crop was (536, 84, 2880, 1084), 2344 × 1000, resized to 1406 × 600 before sanitization. The panel was temporarily raised to the supported 500 px maximum and restored to 320 px afterward. Normal speed / Smooth turning preferences were unchanged. Options is closed; native Immersive and Options buttons remain visible.
+- Parent visually approved the sanitized input: all five fish are clear; agent names and both footer/details-strip lines are strongly blurred, while native Working/Resting captions remain readable. No sidebar or terminal content is included. Only this approved sanitized PNG was copied into the repository; private originals and their paths are not published.
+- No grading, repositioning, synthesized fish, or reconstructed UI was applied. Resizing and privacy sanitization precede the pinned input; pixel-preservation claims below apply to that sanitized 1406 × 600 input, not the original capture raster.
+- Run: `uv run --with pillow==11.3.0 python tools/prepare-preview.py`. Pillow is build-time only; its bundled default font avoids external font files.
+- Output: `preview.png`, 1534 × 824 RGB PNG. The sanitized input is pasted unscaled and uncropped at (64, 148), with **identical RGB pixels throughout that rectangle**. No gamma/LUT/color change occurs. A sage surround, soft exterior shadow, title, subtitle, and disclosure are added outside the capture; source metadata is not propagated to the output.
+- Regression: `uv run --with pillow==11.3.0 python -m unittest discover -s tests -p test_preview.py` verifies pinned source bytes, legacy archive checksum, dimensions, exact source-region RGB equality, and byte-identical repeated generation.
+- Source licenses remain unchanged: repository MIT art/code and Polyy.AI CC0 fish; see README and `mods/aquarium/assets/LICENSE.txt`. No external fonts or reference artwork are vendored.
+
+## Preserved historical archive
+
+`docs/preview-source.png` remains byte-for-byte unchanged: the already-public 1406 × 940 screenshot originally taken from `preview.png` at base commit `5760cd21adfef6f3ba80277ad3045e113552542b`. SHA-256: `a42938f0b68b94a14a528c9164ece2a7958a107d9487749a417bafd171c7846c`. It is an archive, not the current generator input.
+
+The earlier gallery card used that dark immersive capture with its open settings and a global midtone exponent of 0.80. That grading is removed from the active pipeline. Earlier issue #9 comparison references informed restrained spacing and hierarchy only; none of their artwork, logos, or UI is reused.
 
 ## Refinement and limits
 
-The first rendered card was visually inspected. The second pass gently opened midtones further (exponent 0.84 → 0.80) and aligned the disclosure to the screenshot's right edge. All controls and existing privacy blurs are retained, with no clipping or overlap. That gallery pipeline did not change native SVGs, runtime theme, or behavior; the later runtime palette change is described below.
+The current card deliberately presents a clean workspace-panel crop with Options closed and all five fish visible, rather than a full app/sidebar view. Native colors are already bright; the frame must not recolor them. The second-pass checks are exact source-pixel preservation, consistent existing margins, readable exterior captions, and no added graphics over the native rectangle.
 
-## Runtime palette follow-up
-
-The runtime habitat SVGs now share a brighter turquoise-water, mineral-sand palette in both modes. Fish text uses compact dark ink backings and tank-local status/focus colors, independent of the host theme; chrome and native controls retain the host theme. Paint-level contrast tests cover the habitat colors, not full native compositing or keyboard acceptance. The gallery images above are unchanged historical graded captures, not screenshots of this updated runtime. A future sanitized native capture in both host themes is needed before refreshing the gallery or claiming visual acceptance.
-
-This deliberately shows only the immersive tank crop and its open settings, not a full app/sidebar view. It does not prove live movement, status transitions, or current runtime acceptance. Gallery-owner review of the final brightness and open-menu composition remains appropriate; a future cleaner capture must be separately sanitized before replacing the preserved input.
+This still documents the captured workspace appearance only. It does not prove movement, turning smoothness, hit targeting, keyboard behavior, status transitions, inactive-window lifecycle, immersive appearance, or acceptance in both host themes. Those require separate native evidence. Gallery-owner review remains appropriate; future replacements must be independently sanitized and pinned before publication.
