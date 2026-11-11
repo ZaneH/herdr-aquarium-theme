@@ -82,7 +82,7 @@ test('sub-agents form families through real parent chains, regardless of input o
   ]);
   assert.deepEqual(family, [
     { leader: unrelated, children: [] },
-    { leader, children: [{ agent: grandchild, depth: 2 }, { agent: child, depth: 1 }] },
+    { leader, children: [{ agent: grandchild, depth: 3 }, { agent: child, depth: 2 }] },
   ]);
   assert.equal(fishAsset(child, false, true, leader.address), fishAsset(leader, false, true));
   assert.equal(fishAsset(grandchild, false, true, leader.address), `${speciesFor(leader.address)}-gold.png`);

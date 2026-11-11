@@ -82,13 +82,16 @@ export function schoolFamilies(school, terminals) {
   for (const agent of school) {
     let leader = agent;
     let depth = 0;
+    let hops = 0;
     let address = agent.address;
     const seen = new Set([address]);
     while (parents.get(address)) {
       address = parents.get(address);
       if (seen.has(address)) { leader = agent; depth = 0; break; }
       seen.add(address);
-      if (byAddress.has(address)) { leader = byAddress.get(address); depth++; }
+      hops++;
+      // Count real edges to the displayed leader, including non-reporting agents.
+      if (byAddress.has(address)) { leader = byAddress.get(address); depth = hops; }
     }
     if (!families.has(leader.address)) families.set(leader.address, { leader, children: [] });
     if (leader !== agent) families.get(leader.address).children.push({ agent, depth });

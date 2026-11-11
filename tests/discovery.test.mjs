@@ -68,3 +68,21 @@ test('parent exit does not attach remaining background children elsewhere', () =
   const listedOrphan = { ...leader, address: 't9' };
   assert.equal(schoolAgents([listedOrphan], [raw('t9', 'gone')])[0], listedOrphan);
 });
+
+
+test('non-reporting raw agent bridges retain real depth only to the displayed leader', () => {
+  const middle = raw('middle', 't1', null);
+  const nested = raw('nested', 'middle');
+  // Ancestors above the chosen displayed root must not inflate its brood depth.
+  const terminals = [raw('t1', 'above', 'working'), raw('above', 'unknown', null), middle, nested];
+  const school = schoolAgents([leader], terminals);
+  assert.deepEqual(school.map(a => a.address), ['t1', 'nested']);
+  const families = schoolFamilies(school, terminals);
+  assert.equal(families.length, 1);
+  assert.equal(families[0].leader, leader);
+  assert.deepEqual(families[0].children, [{ agent: school[1], depth: 2 }]);
+  // With no displayed ancestor, the reporting descendant remains independent.
+  const orphanSchool = schoolAgents([], [middle, nested]);
+  assert.deepEqual(schoolFamilies(orphanSchool, [middle, nested]),
+    [{ leader: orphanSchool[0], children: [] }]);
+});
