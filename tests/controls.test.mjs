@@ -2,12 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
+import * as model from '../mods/aquarium/model.js';
 
 // Builder/callback contract check, NOT a native keyboard or layout acceptance test.
 const source = readFileSync(new URL('../mods/aquarium/main.js', import.meta.url), 'utf8')
   .replace(/^import .*;\n/gm, '')
   .replace('export default class Aquarium', 'globalThis.Aquarium = class Aquarium');
-function fixture(settings = new Map(), immersive = false, viewport = { width: 220, height: 240 }) {
+function fixture(settings = new Map(), immersive = false, viewport = { width: 220, height: 240 }, animationCase = null) {
   let nodes;
   function element(type, id) {
     const values = { id }, children = [];
@@ -28,19 +29,26 @@ function fixture(settings = new Map(), immersive = false, viewport = { width: 22
     View: class {}, agents: () => [], terminals: () => [], theme: () => ({}),
     props: () => ({ immersive }), shared: key => settings.get(key),
     setShared: (key, value) => settings.set(key, value),
-    window: { viewport_size: () => viewport }, appWindow: () => ({ active: true }),
+    window: { viewport_size: () => viewport }, appWindow: () => ({ active: animationCase?.active ?? true }),
     newCompletions: () => [], schoolAgents: listed => listed, schoolFamilies: () => [], schoolGeometry: () => ({ lane: 200 }),
     surfaceGeometry: () => ({ count: 0 }),
     floatingSchoolGeometry: () => ({ layouts: [], height: 178 }),
   };
-  for (const name of ['div', 'image', 'h_flex', 'v_flex']) env[name] = () => element(name);
+  if (animationCase) Object.assign(env, model, {
+    agents: () => animationCase.agents, terminals: () => [], focused: () => null,
+  });
+  for (const name of ['div', 'image', 'h_flex', 'v_flex']) env[name] = asset => {
+    const node = element(name);
+    if (name === 'image') node.values.asset = asset;
+    return node;
+  };
   for (const name of ['Button', 'Switch', 'Radio', 'RadioGroup', 'Popover']) env[name] = { new: id => element(name, id) };
   const Aquarium = runInNewContext(`${source}\nAquarium;`, env);
   const view = new Aquarium();
-  Object.assign(view, { size: { width: 220, height: 240 }, previous: new Map(), shimmers: new Map(), optionsOpen: false });
+  Object.assign(view, { size: { width: 220, height: 240 }, previous: new Map(), shimmers: new Map(), motion: new Map(), optionsOpen: false });
   view.syncMotion = () => {}; // Scheduler is outside this suite's scope.
-  const cx = { notify() {}, timer: { after() {} } };
-  return { view, cx, render() { nodes = []; view.render(cx); return new Map(nodes.filter(n => n.values.id).map(n => [n.values.id, n])); } };
+  const cx = { notify() {}, timer: { after() { return { cancel() {} }; } } };
+  return { view, cx, allNodes: () => nodes, render() { nodes = []; view.render(cx); return new Map(nodes.filter(n => n.values.id).map(n => [n.values.id, n])); } };
 }
 
 test('all Options callbacks write controlled shared preferences, read by fresh layout copies', () => {
@@ -92,5 +100,35 @@ test('Options keeps native dismissal ownership and nonshrinking rows inside boun
       assert.ok('flex_none' in node.values);
       assert.ok(node.values.accessibility_label);
     }
+  }
+});
+
+
+test('actual tank descriptors use static assets and omit loops when suspended or inactive', () => {
+  const agents = ['working', 'blocked', 'done'].map(status => ({
+    address: status, status, title: status, program: { name: 'claude', agent: true },
+  }));
+  for (const state of ['active', 'suspended', 'inactive']) {
+    const settings = new Map([['aquarium.paused', false], ['aquarium.free', false]]);
+    const f = fixture(settings, true, undefined, { agents, active: state !== 'inactive' });
+    f.view.suspended = state === 'suspended';
+    // Keep a preexisting shimmer to ensure rendering itself suppresses its loop too.
+    f.view.shimmers.set('done', { cancel() {} });
+    f.render();
+    const nodes = f.allNodes();
+    const loops = nodes.filter(n => n.values.loop);
+    const assets = nodes.filter(n => n.type === 'image').map(n => n.values.asset);
+    if (state === 'active') {
+      assert.ok(loops.some(n => n.values.id === 'surface-wave'));
+      assert.ok(loops.some(n => n.values.id === 'front-glass-blocked'));
+      assert.ok(loops.some(n => n.values.id === 'attention-blocked'));
+      assert.ok(assets.some(a => /bubbles-.*\.webp$/.test(a)));
+      assert.ok(assets.some(a => /-swim\.webp$/.test(a)));
+    } else {
+      assert.equal(loops.length, 0, state);
+      assert.ok(assets.some(a => /bubbles-.*\.png$/.test(a)));
+      assert.ok(assets.every(a => !a.endsWith('.webp')), state);
+    }
+    assert.equal(settings.get('aquarium.paused'), false);
   }
 });

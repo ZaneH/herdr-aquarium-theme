@@ -149,12 +149,13 @@ export default class Aquarium extends View {
     }
 
     const paused = shared("aquarium.paused") !== false;
+    const animate = !paused && !this.suspended && appWindow().active;
     const turning = shared("aquarium.turning") !== false;
     const bubbles = shared("aquarium.bubbles") !== false;
     const water = shared("aquarium.water") !== false;
     const free = shared("aquarium.free") !== false;
     const speed = shared("aquarium.speed") === "normal" ? "normal" : "slow";
-    this.syncCompletions(school, paused, cx);
+    this.syncCompletions(school, !animate, cx);
     const selected = school.find(a => a.address === this.hovered)
       ?? focusedAgent ?? school.find(a => a.focused) ?? school[0];
     const detail = selected ? detailsFor(selected, all.find(a => a.address === selected.address)) : null;
@@ -175,7 +176,7 @@ export default class Aquarium extends View {
       const d = detailsFor(a, all.find(terminal => terminal.address === a.address));
       if (leader !== a) d.push(`Fish family: ${leader.title || leader.program.name}`);
       const color = tankInk[a.status] ?? tankInk.idle;
-      const moving = !paused && a.status !== "done" && a.status !== "blocked";
+      const moving = animate && a.status !== "done" && a.status !== "blocked";
       const needsYou = a.status === "blocked";
       const traveling = moving && !free;
       const fishSize = Math.min(width - 8, (needsYou ? 140 : 108) * scale);
@@ -186,21 +187,21 @@ export default class Aquarium extends View {
       const pose = free
         ? div().id(`pose-${a.address}-${motion?.version}`).relative().size_full()
           .opacity(motion?.state.opacity ?? 1)
-          .when(turning && !paused, el => el.transition("opacity", 200))
-          .children(["right", "left"].map(facing => image(`${ART}/${fishAsset(a, paused, turning, leader.address, true, facing)}`)
+          .when(turning && animate, el => el.transition("opacity", 200))
+          .children(["right", "left"].map(facing => image(`${ART}/${fishAsset(a, !animate, turning, leader.address, true, facing)}`)
             .absolute().top(0).left(0).size_full().opacity((motion?.state.face ?? "right") === facing ? 1 : 0)))
-        : image(`${ART}/${fishAsset(a, paused, turning, leader.address)}`).size_full();
+        : image(`${ART}/${fishAsset(a, !animate, turning, leader.address)}`).size_full();
       const fish = div().absolute().top(0).left(traveling ? (width - travelWidth) / 2 : (width - fishSize) / 2)
         .w(traveling ? travelWidth : fishSize).h(traveling ? travelWidth / 4 : fishSize)
         .when(needsYou, el => el.child(image(`${ART}/attention.svg`).id(`attention-${a.address}`)
           .absolute().top((fishSize - haloSize) / 2).left((fishSize - haloSize) / 2).size(haloSize)
-          .when(!paused, halo => halo.loop("opacity", { from: 0.5, to: 1, period: 3200 }))))
+          .when(animate, halo => halo.loop("opacity", { from: 0.5, to: 1, period: 3200 }))))
         .child(pose)
-        .when(!paused && a.status === "done" && this.shimmers.has(a.address), el =>
+        .when(animate && a.status === "done" && this.shimmers.has(a.address), el =>
           el.child(image(`${ART}/shimmer.svg`).id(`shimmer-${a.address}`).absolute()
             .top((fishSize - haloSize) / 2).left((fishSize - haloSize) / 2).size(haloSize)
             .loop("opacity", { from: 0.15, to: 0.9, period: 1200 })))
-        .when(needsYou && !paused, el => el.id(`front-glass-${a.address}`).loop("top", { from: 0, to: 6 * scale, period: 3200 }));
+        .when(needsYou && animate, el => el.id(`front-glass-${a.address}`).loop("top", { from: 0, to: 6 * scale, period: 3200 }));
       return Button.new(`fish-${a.address}`).tab_index(tabIndex++).relative().w(width).h(artHeight + 38).flex_none()
         .flex().flex_col().items_center().justify_end().pb(9).rounded(14)
         .border(1).border_color("#00000000").focus(s => s.border_color(tankInk.background))
@@ -253,7 +254,7 @@ export default class Aquarium extends View {
     const bodyHeight = Math.max(178, this.size.height - 118);
     const floatingSchool = floatingSchoolGeometry(bodyWidth, bodyHeight, families);
     const floats = families.map((family, index) => ({ ...family, layout: floatingSchool.layouts[index] }));
-    this.syncMotion(floats, free && !paused && !this.suspended && appWindow().active, speed, turning, cx);
+    this.syncMotion(floats, free && animate, speed, turning, cx);
     const schoolView = free
       ? div().relative().w(bodyWidth).h(floatingSchool.height).flex_none()
         .children(floats.map(({ leader, children, layout: g }) => {
@@ -285,9 +286,9 @@ export default class Aquarium extends View {
         .w(surface.tileWidth * surface.count).h(surface.height)
         .children(Array.from({ length: surface.count }, () => image(`${ART}/surface.svg`)
           .w(surface.tileWidth).h(surface.height).flex_none()))
-        .when(!paused, wave => wave.loop("left", { from: -surface.travel, to: 0, period: 9000 }))))
+        .when(animate, wave => wave.loop("left", { from: -surface.travel, to: 0, period: 9000 }))))
       .when(bubbles, el => el.children(["left", "right"].map(side =>
-        image(`${ART}/bubbles-${side}.${paused ? "png" : "webp"}`).absolute().top(0)
+        image(`${ART}/bubbles-${side}.${animate ? "webp" : "png"}`).absolute().top(0)
           .w(waterHeight / 6).h(waterHeight)
           .when(side === "left", stream => stream.left(0))
           .when(side === "right", stream => stream.right(0)))))
