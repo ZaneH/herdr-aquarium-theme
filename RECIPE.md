@@ -4,7 +4,7 @@ Two calm native Herdr layouts: a working terminal workspace beneath an aquarium,
 
 ![Immersive aquarium](preview.png)
 
-The screenshot is cropped to the tank, with agent labels blurred for privacy.
+This preserved historical preview is color-graded and cropped to the tank, with agent labels blurred for privacy. It predates the current brighter runtime habitat palette; a fresh sanitized native capture is pending.
 
 ## What you see
 

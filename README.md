@@ -6,7 +6,7 @@ Your coding agents, as a school of fish. Two native [Herdr GUI](https://herdr.de
 
 ![Immersive aquarium in Herdr](preview.png)
 
-*Gallery presentation of a cropped native in-app screenshot: midtones brightened, agent labels blurred for privacy. The light surround and headings are presentation, not app UI; no fish or controls were added.*
+*Historical, color-graded native screenshot: cropped to the tank, midtones brightened, agent labels blurred for privacy. The surround and headings are presentation, not app UI; no fish or controls were added. The current runtime has a newer, brighter habitat palette; a fresh sanitized native capture is pending.*
 
 Regenerate from the preserved sanitized input with `uv run --with pillow==11.3.0 python tools/prepare-preview.py` (build-time only). See [gallery direction and provenance](docs/gallery-direction.md).
 

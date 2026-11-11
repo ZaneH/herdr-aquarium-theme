@@ -2,7 +2,7 @@
 
 Quiet space is the organizing material: the tank stays large and uninterrupted, with an even gallery margin that separates product from presentation. Meticulously crafted alignment, rather than added aquarium decoration, gives the image its finish.
 
-A pale sage surround brings daylight to the composition. A restrained global midtone lift opens the existing teal water while preserving its depth, orange fish accents, and mint controls. The native palette itself is unchanged; this is explicitly a color-graded presentation, not an unedited capture.
+A pale sage surround brings daylight to the composition. A restrained global midtone lift opens the existing teal water while preserving its depth, orange fish accents, and mint controls. The grading pipeline changes only the gallery presentation, not runtime assets. This preserved historical capture predates the newer, brighter runtime habitat palette; a fresh sanitized native capture is pending.
 
 The original two inhabitants establish scale and rhythm. Their positions, labels, habitat, and open Options panel remain exactly where the capture placed them. Painstaking restraint means no cloned fish, synthetic telemetry, replacement controls, or decorative plants masquerading as product features.
 
@@ -19,7 +19,7 @@ Typography stays outside the screenshot: a short title, the repository's existin
 
 ## Refinement and limits
 
-The first rendered card was visually inspected. The second pass gently opened midtones further (exponent 0.84 → 0.80) and aligned the disclosure to the screenshot's right edge. All controls and existing privacy blurs are retained, with no clipping or overlap. The native SVGs, runtime theme, and behavior were not changed.
+The first rendered card was visually inspected. The second pass gently opened midtones further (exponent 0.84 → 0.80) and aligned the disclosure to the screenshot's right edge. All controls and existing privacy blurs are retained, with no clipping or overlap. That gallery pipeline did not change native SVGs, runtime theme, or behavior; the later runtime palette change is described below.
 
 ## Runtime palette follow-up
 
