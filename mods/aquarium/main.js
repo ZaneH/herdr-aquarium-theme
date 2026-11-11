@@ -145,7 +145,7 @@ export default class Aquarium extends View {
           run("aquarium.resume");
         }))
         .child(div().flex_1().truncate().text_size(13).text_color(t.foreground).child(agent?.title || "Agent terminal"))
-        .child(this.button("back-to-workspace", "Workspace", () => { this.suspended = true; this.stopMotion(); run("layout.switch", { name: "aquarium" }); }, 1));
+        .child(this.button("back-to-workspace", "Workspace", () => { this.suspended = true; this.stopMotion(); run("layout.switch", { name: "aquarium" }); run("aquarium.resume"); }, 1));
     }
 
     const paused = shared("aquarium.paused") !== false;
@@ -295,7 +295,7 @@ export default class Aquarium extends View {
       .child(div().absolute().top(50).bottom(10).left(16).right(16)
         .id("school-scroll").overflow_scrollbar().child(schoolView))
       .child(h_flex().absolute().top(10).right(18).gap(8).items_center()
-        .child(this.button("aquarium-mode", immersive ? "Workspace" : "Immersive", () => { this.suspended = true; this.stopMotion(); run("layout.switch", { name: immersive ? "aquarium" : "aquarium-immersive" }); }))
+        .child(this.button("aquarium-mode", immersive ? "Workspace" : "Immersive", () => { this.suspended = true; this.stopMotion(); run("layout.switch", { name: immersive ? "aquarium" : "aquarium-immersive" }); run("aquarium.resume"); }))
         .child(options))
       .when(!school.length, el => el.child(v_flex().absolute().top(90).left(24).gap(6)
         .child(div().text_size(17).child("A little quiet in here."))

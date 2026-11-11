@@ -9,7 +9,8 @@ const source = readFileSync(new URL('../mods/aquarium/main.js', import.meta.url)
   .replace(/^import .*;\n/gm, '')
   .replace('export default class Aquarium', 'globalThis.Aquarium = class Aquarium');
 function fixture(settings = new Map(), immersive = false, viewport = { width: 220, height: 240 }, animationCase = null) {
-  let nodes;
+  let nodes, receive;
+  const commands = [];
   function element(type, id) {
     const values = { id }, children = [];
     const node = new Proxy({ type, values, childNodes: children }, { get(target, key) {
@@ -27,7 +28,9 @@ function fixture(settings = new Map(), immersive = false, viewport = { width: 22
   }
   const env = {
     View: class {}, agents: () => [], terminals: () => [], theme: () => ({}),
-    props: () => ({ immersive }), shared: key => settings.get(key),
+    props: () => ({ immersive, terminal: animationCase?.terminal }), shared: key => settings.get(key),
+    run: (name, args) => commands.push([name, args]),
+    nextCommand: () => new Promise(resolve => { receive = resolve; }),
     setShared: (key, value) => settings.set(key, value),
     window: { viewport_size: () => viewport }, appWindow: () => ({ active: animationCase?.active ?? true }),
     newCompletions: () => [], schoolAgents: listed => listed, schoolFamilies: () => [], schoolGeometry: () => ({ lane: 200 }),
@@ -48,7 +51,10 @@ function fixture(settings = new Map(), immersive = false, viewport = { width: 22
   Object.assign(view, { size: { width: 220, height: 240 }, previous: new Map(), shimmers: new Map(), motion: new Map(), optionsOpen: false });
   view.syncMotion = () => {}; // Scheduler is outside this suite's scope.
   const cx = { notify() {}, timer: { after() { return { cancel() {} }; } } };
-  return { view, cx, allNodes: () => nodes, render() { nodes = []; view.render(cx); return new Map(nodes.filter(n => n.values.id).map(n => [n.values.id, n])); } };
+  return { view, cx, commands,
+    listen() { view.init({}, { spawn(callback) { callback(cx); } }); },
+    async deliver(command) { receive(command); await new Promise(resolve => setImmediate(resolve)); },
+    allNodes: () => nodes, render() { nodes = []; view.render(cx); return new Map(nodes.filter(n => n.values.id).map(n => [n.values.id, n])); } };
 }
 
 test('all Options callbacks write controlled shared preferences, read by fresh layout copies', () => {
@@ -131,4 +137,40 @@ test('actual tank descriptors use static assets and omit loops when suspended or
     }
     assert.equal(settings.get('aquarium.paused'), false);
   }
+});
+
+
+test('layout-switch callbacks suspend source then request target resume in order', async () => {
+  const workspace = fixture(new Map(), false);
+  const immersive = fixture(new Map(), true);
+  workspace.listen();
+  immersive.listen();
+  // Dispatch delivery is conditional here: verify listener behavior if host delivers
+  // to selected target, NOT host native command ordering/copy selection.
+  for (const [source, target, name] of [
+    [workspace, immersive, 'aquarium-immersive'],
+    [immersive, workspace, 'aquarium'],
+    [workspace, immersive, 'aquarium-immersive'],
+  ]) {
+    source.commands.length = 0;
+    source.render().get('aquarium-mode').values.on_click();
+    assert.equal(source.view.suspended, true);
+    assert.equal(source.commands[0][0], 'layout.switch');
+    assert.equal(source.commands[0][1].name, name);
+    assert.equal(source.commands[1][0], 'aquarium.resume');
+    assert.equal(source.commands.length, 2);
+    await target.deliver('resume');
+    assert.equal(target.view.suspended, false);
+    assert.equal(source.view.suspended, true);
+  }
+  const nav = fixture(new Map(), false, undefined, { agents: [], terminal: true });
+  nav.listen();
+  nav.render().get('back-to-workspace').values.on_click();
+  assert.equal(nav.view.suspended, true);
+  assert.equal(nav.commands[0][0], 'layout.switch');
+  assert.equal(nav.commands[0][1].name, 'aquarium');
+  assert.equal(nav.commands[1][0], 'aquarium.resume');
+  assert.equal(nav.commands.length, 2);
+  await workspace.deliver('resume');
+  assert.equal(workspace.view.suspended, false);
 });
