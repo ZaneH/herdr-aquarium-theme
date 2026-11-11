@@ -19,10 +19,12 @@ test('oversized families have disjoint full movement envelopes and scroll extent
         const g = floatingSchoolGeometry(width, height, school);
         assert.equal(g.layouts.length, school.length);
         assert.deepEqual(g, floatingSchoolGeometry(width, height, school));
-        let bottom = g.layouts.some(layout => layout.height <= height) ? height : 0;
+        const crowded = g.layouts.filter(layout => layout.height <= height && layout.width > width / 2 && layout.height > height / 2);
+        const banded = layout => layout.height > height || (crowded.length > 1 && crowded.includes(layout));
+        let bottom = g.layouts.some(layout => !banded(layout)) ? height : 0;
         for (const [index, layout] of g.layouts.entries()) {
           assert.ok(layout.width + layout.maxX <= width);
-          if (layout.height <= height) {
+          if (!banded(layout)) {
             assert.deepEqual(layout, { ...floatingGeometry(width, height, school[index].leader.address, counts[index]), top: 0 });
           } else {
             assert.ok(layout.top >= bottom);
@@ -35,6 +37,32 @@ test('oversized families have disjoint full movement envelopes and scroll extent
       }
     }
   }
+});
+
+test('unavoidably overlapping fitting families get distinct stationary vertical bands', () => {
+  // main.js caller: max(104, size.width - 32), max(178, size.height - 118).
+  for (const [size, counts] of [[{ width: 136, height: 296 }, [0, 0]], [{ width: 900, height: 500 }, [9, 9]]]) {
+    const width = Math.max(104, size.width - 32);
+    const height = Math.max(178, size.height - 118);
+    const school = families(counts);
+    const raw = school.map(({ leader, children }) => floatingGeometry(width, height, leader.address, children.length));
+    assert.ok(raw.every(g => g.width > width / 2 && g.height > height / 2 && g.height <= height));
+    const result = floatingSchoolGeometry(width, height, school);
+    const targets = result.layouts.map(g => ({ g, target: parkMotion(g, null, 0).to }));
+    assert.equal(targets[0].g.top, 0);
+    assert.equal(targets[1].g.top, raw[0].height + 8);
+    for (const { g, target } of targets) {
+      assert.equal(g.maxY, 0);
+      assert.equal(target.y, 0);
+      assert.ok(g.top + target.y + g.height <= result.height);
+      if (width === 104) assert.deepEqual(target, { x: 0, y: 0 });
+    }
+    assert.ok(targets[0].g.top + targets[0].g.height < targets[1].g.top);
+    assert.deepEqual(floatingSchoolGeometry(width, height, school.slice(0, 1)).layouts[0], { ...raw[0], top: 0 }, 'single family retains full-tank path');
+  }
+  const ordinary = families([0, 0]);
+  assert.deepEqual(floatingSchoolGeometry(868, 382, ordinary).layouts,
+    ordinary.map(({ leader }) => ({ ...floatingGeometry(868, 382, leader.address, 0), top: 0 })));
 });
 
 test('family bounds contain actual worst-status buttons and every wrapped child row', () => {
@@ -133,4 +161,18 @@ test('actual render preserves all child hit targets, paused offsets and resize i
   view.size = { width: 100, height: 296 };
   render(); // Organized also retains every independently focusable/clickable child.
   assert.ok(nodes.some(n => n.values.w === 120 && 'flex_none' in n.values));
+  free = true;
+  for (const [size, counts] of [[{ width: 136, height: 296 }, [0, 0]], [{ width: 900, height: 500 }, [9, 9]]]) {
+    const groups = families(counts);
+    agents.splice(0, agents.length, ...groups.flatMap(({ leader, children }) => [leader, ...children.map(c => c.agent)])
+      .map(a => ({ ...a, status: 'blocked', title: a.address, program: { name: 'Test' } })));
+    terminals.splice(0, terminals.length, ...groups.flatMap(({ leader, children }) => children.map(c => ({ address: c.agent.address, parent: leader.address }))));
+    view.size = size;
+    const cards = render();
+    assert.equal(cards.length, 2);
+    assert.equal(cards[0].top, 0);
+    assert.equal(cards[1].top, cards[0].h + 8);
+    assert.ok(cards[0].top + cards[0].h < cards[1].top, 'actual caller targets occupy distinct bands');
+    if (size.width === 136) assert.ok(cards.every(card => card.left === 0));
+  }
 });

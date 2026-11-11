@@ -32,17 +32,20 @@ export function floatingGeometry(width, height, address, children) {
     x: dx * ((seed >>> 16) % 101) / 100, y: dy * ((seed >>> 20) % 101) / 100 };
 }
 
-// Keep ordinary whole-tank paths. Broods taller than the tank cannot swim
-// vertically: give each a separate scroll band instead of piling them at y=0.
+// Keep ordinary whole-tank paths. Separate tall broods and fitting groups
+// whose rectangles must always overlap (both dimensions exceed half the tank).
 export function floatingSchoolGeometry(width, height, families) {
   const layouts = families.map(({ leader, children }) =>
     floatingGeometry(width, height, leader.address, children.length));
-  let bottom = layouts.some(layout => layout.height <= height) ? height + 8 : 0;
+  const crowded = layout => layout.height <= height && layout.width > width / 2 && layout.height > height / 2;
+  const separateCrowded = layouts.filter(crowded).length > 1;
+  const banded = layout => layout.height > height || (separateCrowded && crowded(layout));
+  let bottom = layouts.some(layout => !banded(layout)) ? height + 8 : 0;
   const placed = layouts.map(layout => {
-    if (layout.height <= height) return { ...layout, top: 0 };
+    if (!banded(layout)) return { ...layout, top: 0 };
     const top = bottom;
     bottom += layout.height + 8;
-    return { ...layout, top };
+    return { ...layout, top, maxY: 0, y: 0 };
   });
   return { layouts: placed, height: Math.max(height, bottom ? bottom - 8 : 0) };
 }
