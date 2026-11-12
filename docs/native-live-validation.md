@@ -1,6 +1,9 @@
 # Controlled native validation — 2026-11-11
 
-This is bounded native evidence, not blanket acceptance. PR #8 remains draft.
+This records bounded native evidence from the pre-merge pass, not blanket
+acceptance. The release includes the delivered fixes; remaining interaction,
+keyboard, lifecycle and resource checks are tracked in #2 and #5. The observations
+and limitations below are retained rather than rewritten as complete acceptance.
 The live runtime source was `5a3cf635808f0e6c0cee56d64ee34c58a6276fe7`;
 the gallery and reporting commits do not change those runtime files.
 
@@ -61,7 +64,8 @@ open.
   banner and footer all retained the old bounds. The next sampled frame showed
   the wider view. This supports whole-view/clip or last-frame settling rather
   than an isolated wave-width failure, but does not establish host cause or
-  duration. It is not an uninterrupted-resize pass; issue #3 remains open.
+  duration. It is not an uninterrupted-resize pass; that broader interaction
+  check remains a follow-up in #2/#5, separate from the delivered wave-tiling fix.
 - Both actual shipped layout trees were separately observed for 13 frames over
   approximately 12.18 seconds each. Their 1172-pixel-wide tanks showed full-width
   coverage with no obvious gaps, compression or hard joins in sampled frames.

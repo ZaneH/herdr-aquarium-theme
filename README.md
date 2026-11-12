@@ -2,7 +2,7 @@
 
 Your coding agents, as a school of fish. Two native [Herdr GUI](https://herdr.dev) layouts: a practical workspace and a quiet, immersive tank. Both preserve the standard left sidebar.
 
-> **Draft interaction work:** tracked in [#7](https://github.com/ZaneH/herdr-aquarium-theme/issues/7). The waypoint replacement for the [backwards-facing bug (#1)](https://github.com/ZaneH/herdr-aquarium-theme/issues/1) still requires live acceptance and is not ready to merge. Passing geometry/render tests does not establish correct movement.
+> **Release scope:** includes the waypoint-facing fix, compact native Options, seamless wave tiles, real child-agent discovery/navigation, and brighter native gallery. Motion remains opt-in and off on fresh installs. Moving-click comfort/crowded layouts ([#2](https://github.com/ZaneH/herdr-aquarium-theme/issues/2)) and performance/lifecycle/keyboard follow-ups ([#5](https://github.com/ZaneH/herdr-aquarium-theme/issues/5)) remain open; these are not claims of complete user acceptance.
 
 ![Native Herdr aquarium workspace panel](preview.png)
 
@@ -23,7 +23,7 @@ herdr-app do layout.switch '{"name":"aquarium-immersive"}'
 herdr-app do layout.switch '{"name":"main"}'
 ```
 
-Hover a fish for status and location. The details strip follows the hovered agent, then the focused agent, then the first agent. Fish are also Tab stops with visible focus borders, accessible labels, and keyboard activation. In Free-floating mode each fish's generous click target and label move with it. Organized mode keeps stationary travel lanes; crowded schools wrap and scroll.
+Hover a fish for status and location. The details strip follows the hovered agent, then the focused agent, then the first agent. Fish expose native Button Tab stops, focus-border styles, accessible labels, and keyboard activation; complete hands-on keyboard acceptance remains tracked in #5. In Free-floating mode each fish's generous click target and label move with it. Organized mode keeps stationary travel lanes; crowded schools wrap and scroll.
 
 **Sub-agents become little fish in their parent's family.** Real `terminals().parent` relationships determine the groups, including nested descendants. Children inherit the main agent's species, with smaller portraits; deeper descendants are smaller again. Free-floating families drift as a group, keeping children alongside their parent. Organized families cluster beneath or alongside the parent depending on space. Each still has its own status, tooltip, Tab stop, and terminal click target. Missing/unmapped parents leave fish independent rather than guessing relationships. Families taller than the tank use separate scroll bands; multiple fitting families that each exceed half the tank in both dimensions also get separate bands so their targets cannot remain permanently overlapped. Narrow panes can scroll horizontally, and ordinary Free-floating routes can still cross.
 
