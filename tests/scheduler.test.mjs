@@ -25,7 +25,7 @@ function fixture() {
   } };
   const Aquarium = runInNewContext(`${source}\nAquarium;`, {
     View: class {}, ...motion, ...presentation, newCompletions, Date: { now: () => clock.now },
-    appWindow: () => ({ active: clock.active }),
+    appWindow: () => clock.missingWindow ? null : ({ active: clock.active }),
   });
   const view = new Aquarium();
   Object.assign(view, { motion: new Map(), motionDue: Infinity, motionGeneration: 0,
@@ -219,6 +219,21 @@ test('inactive window parks without a replacement task, then can restart', () =>
   f.clock.active = true;
   f.sync();
   assert.equal(f.tasks.length, 2);
+  assert.equal(f.view.motion.get('parent').state.phase, 'ready');
+});
+
+test('absent native window is inactive during timer dispatch and reconciliation', () => {
+  const f = fixture();
+  f.sync();
+  f.clock.missingWindow = true;
+  f.fire(250);
+  f.sync();
+  assert.equal(f.view.motion.get('parent').state.phase, 'parked');
+  assert.equal(f.view.motionDue, Infinity);
+  f.view.syncCompletions([{ address: 'child', status: 'done' }], false, f.cx);
+  assert.equal(f.view.shimmers.size, 0);
+  f.clock.missingWindow = false;
+  f.sync();
   assert.equal(f.view.motion.get('parent').state.phase, 'ready');
 });
 

@@ -232,6 +232,11 @@ test('picker is stationary, bounded, lazy, and closes mutually with Options', ()
   assert.equal(f.view.pickerTarget, null);
   staleChoice(true);
   assert.equal(f.render().get('aquarium-fish-species').childNodes.length, 0);
+  // Inactivity also clears a picker when no motion deadline exists to notice it.
+  f.view.pickerTarget = { address: 't1', key: model.familyChoiceKey(data.agents[0], data.spaces), title: 'A' };
+  data.active = false;
+  assert.equal(f.render().get('aquarium-fish-picker').values.open, false);
+  assert.equal(f.view.pickerTarget, null);
 });
 
 test('fish picker persists validated family choices and captures intended target', () => {

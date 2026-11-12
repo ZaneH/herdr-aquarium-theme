@@ -63,7 +63,7 @@ export default class Aquarium extends View {
   syncCompletions(school, paused, cx) {
     if (this.closed) return;
     // Window inactivity is not copy visibility; explicit navigation owns suspension.
-    paused = paused || this.suspended || !appWindow().active;
+    paused = paused || this.suspended || !appWindow()?.active;
     const current = new Map(school.map(agent => [agent.address, agent.status]));
     for (const [address, task] of this.shimmers) {
       if (paused || current.get(address) !== "done") {
@@ -86,7 +86,7 @@ export default class Aquarium extends View {
 
   syncMotion(families, enabled, speed, soft, cx) {
     if (this.closed) return;
-    enabled = enabled && !this.suspended && appWindow().active;
+    enabled = Boolean(enabled && !this.suspended && appWindow()?.active);
     const now = Date.now();
     const addresses = new Set();
     for (const { leader, children = [], layout: g } of families) {
@@ -118,7 +118,7 @@ export default class Aquarium extends View {
       if (generation !== this.motionGeneration) return;
       this.motionTask = null;
       this.motionDue = Infinity;
-      if (this.closed || this.suspended || !appWindow().active) { this.stopMotion(); cx.notify(); return; }
+      if (this.closed || this.suspended || !appWindow()?.active) { this.stopMotion(); cx.notify(); return; }
       const now = Date.now();
       for (const entry of this.motion.values()) {
         entry.state = advanceMotion(entry.state, entry.geometry, now, entry.speed, entry.soft);
@@ -156,7 +156,9 @@ export default class Aquarium extends View {
     }
 
     const paused = shared("aquarium.paused") !== false;
-    const animate = !paused && !this.suspended && appWindow().active;
+    const activeWindow = Boolean(appWindow()?.active);
+    if (!activeWindow || this.suspended) this.pickerTarget = null;
+    const animate = !paused && !this.suspended && activeWindow;
     const turning = shared("aquarium.turning") !== false;
     const bubbles = shared("aquarium.bubbles") !== false;
     const water = shared("aquarium.water") !== false;
