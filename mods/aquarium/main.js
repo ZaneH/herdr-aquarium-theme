@@ -196,6 +196,8 @@ export default class Aquarium extends View {
     const water = shared("aquarium.water") !== false;
     const free = shared("aquarium.free") !== false;
     const speed = shared("aquarium.speed") === "normal" ? "normal" : "slow";
+    const night = shared("aquarium.night") === true;
+    const labelInk = night ? "#d8f0ed" : tankInk.foreground;
     // Food is cosmetic and dies with pause/suspension/inactivity/organized mode.
     if ((!animate || !free) && this.food) this.clearFood();
     this.syncCompletions(school, !animate, cx);
@@ -262,7 +264,7 @@ export default class Aquarium extends View {
             .loop("opacity", { from: 0.15, to: 0.9, period: 1200 })));
       return Button.new(`fish-${a.address}`).tab_index(tabIndex++).relative().w(width).h(presentation.targetHeight).flex_none()
         .flex().flex_col().items_center().justify_end().pb(9)
-        .border(1).border_color("#00000000").focus(s => s.border_color(tankInk.background))
+        .border(1).border_color("#00000000").focus(s => s.border_color(night ? labelInk : tankInk.background))
         .accessibility_label(`${a.title || a.program.name}, ${statusLabel[a.status]}. ${d.join(". ")}. Open agent.`)
         .tooltip(`${a.title || a.program.name}\n${d.join("\n")}\nClick to open agent`)
         .on_hover((hovered, cx) => {
@@ -273,11 +275,11 @@ export default class Aquarium extends View {
         })
         .on_click(() => { this.inspected = a.address; open(a); })
         .child(fish)
-        .child(h_flex().gap(5).items_center().px(5).text_color(tankInk.foreground)
+        .child(h_flex().gap(5).items_center().px(5).text_color(labelInk)
           .child(div().size(6).rounded_full().bg(color))
           .child(div().max_w(width - 24).truncate().text_size(12).font_semibold()
             .child(`${leader !== a ? "↳ " : ""}${a.title || a.program.name}`)))
-        .child(div().px(5).text_size(11).text_color(tankInk.foreground).child(statusLabel[a.status]));
+        .child(div().px(5).text_size(11).text_color(labelInk).child(statusLabel[a.status]));
     };
 
     const toggle = (id, label, checked, change) => Switch.new(id).checked(checked).on_change(change)
@@ -314,7 +316,8 @@ export default class Aquarium extends View {
         .child(choices("aquarium-speed", "Free-floating speed", speed, [["slow", "Slow"], ["normal", "Normal"]], value => setShared("aquarium.speed", value)))
         .child(choices("aquarium-turning", "Turning", turning, [[true, "Smooth"], [false, "Instant"]], value => setShared("aquarium.turning", value)))
         .child(toggle("aquarium-bubbles", "Bubbles", bubbles, checked => setShared("aquarium.bubbles", checked)))
-        .child(toggle("aquarium-water", "Surface waves", water, checked => setShared("aquarium.water", checked))));
+        .child(toggle("aquarium-water", "Surface waves", water, checked => setShared("aquarium.water", checked)))
+        .child(toggle("aquarium-night", "Night lighting", night, checked => setShared("aquarium.night", checked))));
 
     const candidate = families.find(({ leader, children }) => leader.address === this.inspected ||
       children.some(({ agent }) => agent.address === this.inspected))?.leader
@@ -420,6 +423,9 @@ export default class Aquarium extends View {
     const waterHeight = Math.max(120, this.size.height - 58);
     const surface = surfaceGeometry(this.size.width);
     const tank = div().relative().flex_1().min_h(0).overflow_hidden()
+      // Decorative tint only: first child so waves, bubbles, families, food and controls paint above it.
+      .when(night, el => el.child(div().id("aquarium-night-overlay").absolute()
+        .top(0).left(0).right(0).bottom(0).bg("#061f35").opacity(0.72)))
       .when(water, el => el.child(h_flex().id("surface-wave").absolute().top(0).left(-surface.travel)
         .w(surface.tileWidth * surface.count).h(surface.height)
         .children(Array.from({ length: surface.count }, () => image(`${ART}/surface.svg`)
@@ -434,8 +440,8 @@ export default class Aquarium extends View {
         .id("school-scroll").overflow_scrollbar().child(schoolView))
 
       .when(!school.length, el => el.child(v_flex().absolute().top(90).left(24).gap(6)
-        .child(div().text_size(17).child("A little quiet in here."))
-        .child(div().text_size(13).text_color(t.muted).child("Start an agent from the + menu in Workspace. Its fish will appear here."))));
+        .child(div().text_size(17).text_color(night ? labelInk : t.foreground).child("A little quiet in here."))
+        .child(div().text_size(13).text_color(night ? labelInk : t.muted).child("Start an agent from the + menu in Workspace. Its fish will appear here."))));
 
     const controls = h_flex().id("aquarium-controls").absolute().top(10).left(16).right(18)
       .flex_wrap().justify_end().gap(8).items_center()

@@ -36,9 +36,21 @@ test('unbacked lettering and keyboard focus contrast with habitat paints indepen
   }
   assert.deepEqual(paints[0], paints[1]);
   // These are paint-level checks, not native rendering or keyboard acceptance.
-  assert.match(source, /focus\(s => s.border_color\(tankInk.background\)\)/);
-  const labelRows = [...source.matchAll(/text_color\(tankInk.foreground\)/g)];
-  assert.ok(labelRows.length >= 2, 'two actual fish label rows must paint with tankInk.foreground, not an unused constant');
+  assert.match(source, /focus\(s => s.border_color\(night \? labelInk : tankInk.background\)\)/);
+  // Night labels use a render-local pale ink, chosen when aquarium.night is on.
+  const nightInk = '#d8f0ed';
+  assert.match(source, /const labelInk = night \? "#d8f0ed" : tankInk\.foreground/);
+  const labelRows = [...source.matchAll(/text_color\(labelInk\)/g)];
+  assert.ok(labelRows.length >= 2, 'both actual fish label rows must paint with labelInk, not an unused constant');
+  // Check each habitat paint after tinting, not just the raw overlay color.
+  // These samples do not substitute for native rendering or focus acceptance.
+  const overlay = '#061f35';
+  for (const daylight of new Set(paints.flat())) {
+    const composite = '#' + [1, 3, 5].map(i => Math.round(0.72 * parseInt(overlay.slice(i, i + 2), 16)
+      + 0.28 * parseInt(daylight.slice(i, i + 2), 16)).toString(16).padStart(2, '0')).join('');
+    assert.ok(contrast(nightInk, composite) >= 4.5, `night ink on composite ${composite}`);
+    assert.ok(contrast(nightInk, composite) >= 3, `night focus on composite ${composite}`);
+  }
   assert.doesNotMatch(source, /bg\(tankInk.background\)/);
   assert.doesNotMatch(source, /hover\(s => s.bg\("#173b4614"\)/);
 });

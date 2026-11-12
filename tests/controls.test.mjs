@@ -402,6 +402,101 @@ test('food feedback paints above the family that reaches the target', () => {
   assert.ok(ids.indexOf("aquarium-food") > family, "pellet is above the family");
 });
 
+test('night lighting defaults off; its Options switch persists only aquarium.night', () => {
+  const settings = new Map();
+  const fresh = fixture(settings);
+  const nodes = fresh.render();
+  assert.equal(settings.size, 0, 'render never writes');
+  assert.equal(nodes.has('aquarium-night-overlay'), false, 'default install has no night overlay');
+  const nightSwitch = nodes.get('aquarium-night');
+  assert.equal(nightSwitch.values.checked, false);
+  assert.equal(nightSwitch.values.accessibility_label, 'Night lighting');
+  nightSwitch.values.on_change(true, fresh.cx);
+  assert.deepEqual([...settings], [['aquarium.night', true]], 'the switch writes only aquarium.night');
+  for (const immersive of [false, true]) {
+    const copy = fixture(settings, immersive).render();
+    assert.equal(copy.get('aquarium-night').values.checked, true, `${immersive}: fresh copy reads persisted value`);
+    assert.ok(copy.has('aquarium-night-overlay'), `${immersive}: overlay present`);
+  }
+  // Turning it off restores the day view, independent of Animate aquarium.
+  nightSwitch.values.on_change(false, fresh.cx);
+  const off = fixture(settings).render();
+  assert.equal(settings.get('aquarium.night'), false);
+  assert.equal(off.has('aquarium-night-overlay'), false, 'off restores day habitat');
+});
+
+test('night overlay is static, noninteractive, and paints below waves, families and food', () => {
+  const fish = { address: 'agent', status: 'working', title: 'agent',
+    program: { name: 'Pi', agent: true }, space: 'space' };
+  const terminal = { address: 'agent', state: 'live', parent: null, status: 'working',
+    program: { name: 'Pi', agent: true, shell: false } };
+  const settings = new Map([['aquarium.night', true], ['aquarium.free', true], ['aquarium.paused', false]]);
+  const f = fixture(settings, false, { width: 500, height: 400 }, { agents: [fish], terminals: [terminal] });
+  f.view.size = { width: 500, height: 400 };
+  f.view.dropFood(f.cx);
+  f.view.motion.set('agent', { version: 1, state: { to: { x: 10, y: 10 }, phase: 'parked', duration: 0 } });
+  const nodes = f.render();
+  const overlay = nodes.get('aquarium-night-overlay');
+  assert.ok(overlay, 'overlay node exists when night is on');
+  assert.equal(overlay.values.bg, '#061f35');
+  assert.equal(overlay.values.opacity, 0.72);
+  assert.ok('absolute' in overlay.values, 'overlay is positioned, filling the tank');
+  for (const key of ['on_click', 'on_hover', 'on_action', 'accessibility_label', 'tab_index'])
+    assert.equal(overlay.values[key], undefined, `overlay is decorative: no ${key}`);
+  assert.equal(overlay.values.transition, undefined, 'no fade or timers on the overlay');
+  const layer = f.allNodes().find(node => node.childNodes.some(child => child.values?.id === 'aquarium-night-overlay'));
+  const ids = layer.childNodes.map(child => child.values?.id);
+  const overlayAt = ids.indexOf('aquarium-night-overlay');
+  assert.equal(overlayAt, 0, 'overlay is the first child of the tank layer');
+  assert.ok(overlayAt < ids.indexOf('surface-wave'), 'below surface waves');
+  assert.ok(overlayAt < ids.indexOf('school-scroll'), 'below the family/food school');
+  assert.ok(nodes.has('aquarium-food'), 'the ordering check includes an actual pellet');
+  assert.ok(nodes.has('aquarium-food-halo'), 'food feedback remains present above the tint');
+});
+
+test('night switches both real label rows to moonlit ink; art, status and controls stay day', () => {
+  const fish = { address: 't1', status: 'working', title: 'A',
+    program: { name: 'Pi', agent: true }, space: 's1' };
+  const terminal = { address: 't1', state: 'live', parent: null, status: 'working',
+    program: { name: 'Pi', agent: true, shell: false } };
+  const data = { agents: [fish], terminals: [terminal] };
+  for (const [night, ink] of [[true, '#d8f0ed'], [false, '#0a2028']]) {
+    // Night ink applies with Animate off too: night lighting is independent of motion.
+    const settings = new Map([['aquarium.paused', true], ['aquarium.free', false], ['aquarium.night', night]]);
+    const f = fixture(settings, false, undefined, data);
+    const nodes = f.render();
+    assert.equal(nodes.has('aquarium-night-overlay'), night, `overlay only when night (${night})`);
+    const fishButton = nodes.get('fish-t1');
+    const [nameRow, statusRow] = fishButton.childNodes.slice(1);
+    assert.equal(nameRow.values.text_color, ink, 'name row ink');
+    assert.equal(statusRow.values.text_color, ink, 'status row ink');
+    // Keep status semantics, but adapt the fish focus ring to the darker habitat.
+    let focusColor;
+    fishButton.values.focus({ border_color(color) { focusColor = color; return this; } });
+    assert.equal(focusColor, night ? ink : '#173b46', 'focus ring contrasts with the current lighting');
+    assert.equal(nameRow.childNodes[0].values.bg, '#b7efdb', 'status dot keeps day working color');
+    const art = fishButton.childNodes[0];
+    const assets = [];
+    const walk = n => { if (n?.values?.asset) assets.push(n.values.asset); for (const c of n?.childNodes || []) walk(c); };
+    walk(art);
+    assert.deepEqual(assets, [`mods/aquarium/assets/${model.fishAsset(fish, true, true)}`], 'artwork is unchanged by lighting');
+    for (const id of ['aquarium-options-trigger', 'aquarium-feed']) {
+      const control = nodes.get(id);
+      assert.notEqual(control.values.text_color, '#d8f0ed', `${id} keeps native control color`);
+    }
+  }
+});
+
+test('night lighting keeps empty-tank guidance readable', () => {
+  const f = fixture(new Map([['aquarium.night', true]]), false, undefined, { agents: [], terminals: [] });
+  f.render();
+  for (const text of ['A little quiet in here.', 'Start an agent from the + menu in Workspace. Its fish will appear here.']) {
+    const line = f.allNodes().find(node => node.childNodes.includes(text));
+    assert.ok(line, `empty-tank guidance exists: ${text}`);
+    assert.equal(line.values.text_color, '#d8f0ed');
+  }
+});
+
 test('picker preview follows the choice with honest motion labels and full gating', () => {
   const program = { name: 'Pi' };
   const leader = { address: 't1', space: 's1', title: 'A', status: 'working', program };
