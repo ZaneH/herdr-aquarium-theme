@@ -28,7 +28,7 @@ test('raw child peeks without suspension; mapped child retains immersive focus a
     nodes.push(node);
     return node;
   }
-  const env = { ...model, ...presentation, View: class {}, agents: () => listed, terminals: () => [child],
+  const env = { ...model, ...presentation, spaces: () => [], View: class {}, agents: () => listed, terminals: () => [child],
     theme: () => ({}), props: () => ({ terminal, immersive: true }), focused: () => ({ agent: focus }),
     shared: key => key === 'aquarium.free' ? false : undefined,
     run: (command, args) => commands.push({ command, args }),

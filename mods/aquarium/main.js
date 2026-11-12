@@ -1,9 +1,9 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, Button, Switch, Radio, RadioGroup, Popover } from "gpui-base";
-import { agents, terminals, theme, run, shared, setShared, props, focused, nextCommand, window as appWindow } from "herdr";
+import { agents, terminals, spaces, theme, run, shared, setShared, props, focused, nextCommand, window as appWindow } from "herdr";
 import { parkMotion, startMotion, advanceMotion } from "./motion.js";
 import { fishPresentation, familyNeedsAttention } from "./presentation.js";
-import { detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
+import { SPECIES, familyChoiceKey, savedSpecies, speciesName, detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
 
 const ART = "mods/aquarium/assets";
 // Dark lettering sits directly on the bright habitat, without label cards.
@@ -17,6 +17,8 @@ export default class Aquarium extends View {
     this.previous = new Map();
     this.shimmers = new Map();
     this.optionsOpen = false;
+    this.pickerTarget = null;
+    this.inspected = null;
     this.motion = new Map();
     this.motionDue = Infinity;
     this.motionGeneration = 0;
@@ -88,7 +90,7 @@ export default class Aquarium extends View {
     const addresses = new Set();
     for (const { leader, children = [], layout: g } of families) {
       addresses.add(leader.address);
-      const held = this.hovered === leader.address || children.some(({ agent }) => agent.address === this.hovered);
+      const held = this.pickerTarget?.address === leader.address || this.hovered === leader.address || children.some(({ agent }) => agent.address === this.hovered);
       const active = enabled && !held && !familyNeedsAttention({ leader, children }) && leader.status !== "done" && (g.maxX > 0 || g.maxY > 0);
       const key = [g.width, g.height, g.maxX, g.maxY, g.top, active, speed, soft].join(":");
       const previous = this.motion.get(leader.address);
@@ -137,6 +139,7 @@ export default class Aquarium extends View {
     const t = theme();
     const immersive = Boolean(props()?.immersive);
     const all = terminals();
+    const nativeSpaces = spaces();
     const school = schoolAgents(agents(), all);
     if (this.hovered && !school.some(a => a.address === this.hovered)) this.hovered = null;
     const focusedAgent = school.find(a => a.address === focused()?.agent);
@@ -183,6 +186,8 @@ export default class Aquarium extends View {
     const hasAttention = school.some(a => a.status === "blocked");
     let tabIndex = 2;
     const drawFish = (a, width, scale, leader) => {
+      const choiceKey = familyChoiceKey(leader, nativeSpaces);
+      const choice = choiceKey ? savedSpecies(shared(choiceKey)) : null;
       const d = detailsFor(a, all.find(terminal => terminal.address === a.address));
       if (leader !== a) d.push(`Fish family: ${leader.title || leader.program.name}`);
       const color = tankInk[a.status] ?? tankInk.idle;
@@ -198,9 +203,9 @@ export default class Aquarium extends View {
         ? div().id(`pose-${a.address}-${motion?.version}`).relative().size_full()
           .opacity(motion?.state.opacity ?? 1)
           .when(turning && animate, el => el.transition("opacity", 200))
-          .children(["right", "left"].map(facing => image(`${ART}/${fishAsset(a, !animate, turning, leader.address, true, facing)}`)
+          .children(["right", "left"].map(facing => image(`${ART}/${fishAsset(a, !animate, turning, leader.address, true, facing, choice)}`)
             .absolute().top(0).left(0).size_full().opacity((motion?.state.face ?? "right") === facing ? 1 : 0)))
-        : image(`${ART}/${fishAsset(a, !animate, turning, leader.address)}`).size_full();
+        : image(`${ART}/${fishAsset(a, !animate, turning, leader.address, false, "right", choice)}`).size_full();
       const fish = div().id(`art-${a.address}`).absolute().top(presentation.top)
         .left(traveling ? (width - travelWidth) / 2 : (width - fishSize) / 2)
         .w(traveling ? travelWidth : fishSize).h(traveling ? travelWidth / 4 : fishSize)
@@ -221,12 +226,12 @@ export default class Aquarium extends View {
         .accessibility_label(`${a.title || a.program.name}, ${statusLabel[a.status]}. ${d.join(". ")}. Open agent.`)
         .tooltip(`${a.title || a.program.name}\n${d.join("\n")}\nClick to open agent`)
         .on_hover((hovered, cx) => {
-          if (hovered) this.hovered = a.address;
+          if (hovered) { this.hovered = a.address; this.inspected = a.address; }
           else if (this.hovered === a.address) this.hovered = null;
           else return;
           cx.notify();
         })
-        .on_click(() => open(a))
+        .on_click(() => { this.inspected = a.address; open(a); })
         .child(fish)
         .child(h_flex().gap(5).items_center().px(5).text_color(tankInk.foreground)
           .child(div().size(6).rounded_full().bg(color))
@@ -253,7 +258,11 @@ export default class Aquarium extends View {
             .flex().items_center().justify_center().when(value === key, el => el.child(div().size(6).rounded_full().bg(t.accent))))
           .child(text))));
     const options = Popover.new("aquarium-options").open(this.optionsOpen).anchor("top_right")
-      .on_open_change((open, cx) => { this.optionsOpen = open; cx.notify(); })
+      .on_open_change((open, cx) => {
+        this.optionsOpen = open;
+        if (open) this.pickerTarget = null;
+        cx.notify();
+      })
       .trigger(this.button("aquarium-options-trigger", "Options ▾", undefined, 1).accessibility_label("Aquarium options"))
       .content(v_flex().id("aquarium-options-scroll")
         .w(Math.min(256, Math.max(0, window.viewport_size().width - 24)))
@@ -267,8 +276,45 @@ export default class Aquarium extends View {
         .child(toggle("aquarium-bubbles", "Bubbles", bubbles, checked => setShared("aquarium.bubbles", checked)))
         .child(toggle("aquarium-water", "Surface waves", water, checked => setShared("aquarium.water", checked))));
 
+    const candidate = families.find(({ leader, children }) => leader.address === this.inspected ||
+      children.some(({ agent }) => agent.address === this.inspected))?.leader
+      ?? families.find(({ leader, children }) => leader.address === selected?.address ||
+        children.some(({ agent }) => agent.address === selected?.address))?.leader;
+    const fishPicker = () => {
+      const leader = candidate;
+      const key = leader ? familyChoiceKey(leader, nativeSpaces) : null;
+      const target = this.pickerTarget;
+      const isOpen = Boolean(target);
+      const value = isOpen ? savedSpecies(shared(target.key)) : null;
+      return Popover.new("aquarium-fish-picker").open(isOpen).anchor("top_left")
+        .on_open_change((open, cx) => {
+          // Capture identity at opening, never follow hover/focus while editing.
+          this.pickerTarget = open && key ? { key, address: leader.address, title: leader.title || leader.address } : null;
+          if (open) this.optionsOpen = false;
+          cx.notify();
+        })
+        .trigger(this.button("aquarium-fish-picker-trigger", "Choose fish", undefined)
+          .disabled(!key).accessibility_label(`Choose fish for ${target?.title || leader?.title || leader?.address || "no family"}${key ? "" : ": native space unavailable"}`))
+        .content(v_flex().id("aquarium-fish-picker-scroll").w(Math.min(260, Math.max(0, window.viewport_size().width - 24)))
+          .max_h(Math.max(0, Math.min(420, window.viewport_size().height - 24))).overflow_y_scrollbar()
+          .p(12).gap(6).bg(t.surface).text_color(t.foreground).rounded(8)
+          .child(div().child(`Fish for ${isOpen ? target.title : leader?.title || leader?.address || "no family"}`))
+          .child(RadioGroup.new("aquarium-fish-species").axis("vertical").accessibility_label("Family fish species")
+            .flex_none().flex().flex_col().gap(4)
+            .children((isOpen ? [null, ...SPECIES] : []).map(species => Radio.new(`aquarium-fish-choice-${species || "automatic"}`)
+              .checked(value === species).on_change(() => {
+                if (isOpen && this.pickerTarget?.key === target.key) setShared(target.key, species);
+              }).h(44).w_full().flex_none().flex().items_center().gap(8).px(6)
+              .border(1).border_color(value === species ? t.accent : "#00000000")
+              .focus(s => s.border_color(t.accent)).hover(s => s.bg(t.hover))
+              .accessibility_label(species ? speciesName(species) : "Automatic")
+              .when(Boolean(species), el => el.child(image(`${ART}/${species}.png`).size(38)))
+              .child(species ? speciesName(species) : "Automatic")))));
+    };
+
+    const schoolTop = (this.controlsHeight ?? 30) + 20;
     const bodyWidth = Math.max(104, this.size.width - 32);
-    const bodyHeight = Math.max(178, this.size.height - 118);
+    const bodyHeight = Math.max(178, this.size.height - 68 - schoolTop);
     const floatingSchool = floatingSchoolGeometry(bodyWidth, bodyHeight, families);
     const floats = families.map((family, index) => ({ ...family, layout: floatingSchool.layouts[index] }));
     this.syncMotion(floats, free && animate, speed, turning, cx);
@@ -309,15 +355,23 @@ export default class Aquarium extends View {
           .w(waterHeight / 6).h(waterHeight)
           .when(side === "left", stream => stream.left(0))
           .when(side === "right", stream => stream.right(0)))))
-      .child(div().absolute().top(50).bottom(10).left(16).right(16)
+      .child(div().absolute().top(schoolTop).bottom(10).left(16).right(16)
         .id("school-scroll").overflow_scrollbar().child(schoolView))
-      .child(h_flex().absolute().top(10).right(18).gap(8).items_center()
-        .child(this.button("aquarium-mode", immersive ? "Workspace" : "Immersive", () => { this.suspended = true; this.stopMotion(); run("layout.switch", { name: immersive ? "aquarium" : "aquarium-immersive" }); run("aquarium.resume"); }))
-        .child(options))
+
       .when(!school.length, el => el.child(v_flex().absolute().top(90).left(24).gap(6)
         .child(div().text_size(17).child("A little quiet in here."))
         .child(div().text_size(13).text_color(t.muted).child("Start an agent from the + menu in Workspace. Its fish will appear here."))));
 
+    const controls = h_flex().id("aquarium-controls").absolute().top(10).left(16).right(18)
+      .flex_wrap().justify_end().gap(8).items_center()
+      .on_size_change((size, cx) => {
+        if (Math.abs(size.height - (this.controlsHeight ?? 30)) > 1) {
+          this.controlsHeight = size.height;
+          cx.notify();
+        }
+      })
+      .child(this.button("aquarium-mode", immersive ? "Workspace" : "Immersive", () => { this.suspended = true; this.stopMotion(); run("layout.switch", { name: immersive ? "aquarium" : "aquarium-immersive" }); run("aquarium.resume"); }))
+      .child(fishPicker()).child(options);
     return v_flex().id("aquarium-root").size_full().text_color(t.foreground)
       .on_size_change((size, cx) => {
         if (Math.abs(size.width - this.size.width) > 1 || Math.abs(size.height - this.size.height) > 1) {
@@ -325,7 +379,7 @@ export default class Aquarium extends View {
           cx.notify();
         }
       })
-      .child(tank)
+      .child(tank.child(controls))
       .child(v_flex().h(58).flex_none().px(18).py(7).gap(3).bg(t.chrome).border_t(1).border_color(t.border)
         .child(div().text_size(12).font_semibold().truncate().child(selected
           ? [selected.program.name, selected.space_name, selected.tab_name, !selected.space_name && !selected.tab_name ? "Scope: not reported" : null].filter(Boolean).join("  /  ")

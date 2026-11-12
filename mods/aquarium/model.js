@@ -1,4 +1,4 @@
-const SPECIES = ["clownfish", "blue_tang", "betta", "koi", "fancy_goldfish", "mandarinfish", "freshwater_angelfish", "manta_ray",
+export const SPECIES = ["clownfish", "blue_tang", "betta", "koi", "fancy_goldfish", "mandarinfish", "freshwater_angelfish", "manta_ray",
   "lionfish", "anglerfish", "pufferfish_inflated", "largemouth_bass", "bluefin_tuna", "rainbow_trout", "sockeye_salmon",
   "swordfish", "hammerhead_shark", "great_white_shark", "channel_catfish", "piranha", "moray_eel", "seahorse",
   "ocean_sunfish", "flounder", "silver_arowana"];
@@ -110,8 +110,24 @@ export function schoolFamilies(school, terminals) {
   return school.filter(agent => families.has(agent.address)).map(agent => families.get(agent.address));
 }
 
-export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, facing = "right") {
-  const species = speciesFor(speciesAddress);
+// shortcut: no reliable project-close event; retain choices until reset rather than prune disconnected projects.
+export function familyChoiceKey(leader, nativeSpaces) {
+  const space = nativeSpaces.find(space => space.id === leader?.space);
+  if (!space || !space.id || !leader?.address ||
+      !(space.machine === null || (typeof space.machine === "string" && space.machine))) return null;
+  return `aquarium.fish.v1:${JSON.stringify([space.machine, space.id, leader.address])}`;
+}
+
+export function savedSpecies(value) {
+  return typeof value === "string" && SPECIES.includes(value) ? value : null;
+}
+
+export function speciesName(species) {
+  return species.split("_").map(word => word[0].toUpperCase() + word.slice(1)).join(" ");
+}
+
+export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, facing = "right", choice = null) {
+  const species = savedSpecies(choice) || speciesFor(speciesAddress);
   if (floating) return `${species}${facing === "left" ? "-left" : ""}${agent.status === "done" ? "-gold" : ""}.png`;
   if (agent.status === "done") return `${species}-gold.png`;
   if (paused || agent.status === "blocked") return `${species}.png`;

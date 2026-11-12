@@ -47,7 +47,7 @@ function fixture(count, nested, free, hidden = false) {
   const Aquarium = runInNewContext(source.replace(/^import .*;\n/gm, '').replace('export default class Aquarium', 'globalThis.Aquarium = class Aquarium') + '\nAquarium;', {
     ...model, ...motion, ...presentation, View: class {}, div: factory('div'), image: factory('image'), h_flex: factory('h_flex'), v_flex: factory('v_flex'),
     ...Object.fromEntries(['Button', 'Switch', 'Radio', 'RadioGroup', 'Popover'].map(k => [k, widget(k)])),
-    agents: () => listed, terminals: () => terminals, theme: () => ({}), props: () => ({ immersive: false }), focused: () => null,
+    agents: () => listed, terminals: () => terminals, spaces: () => [], theme: () => ({}), props: () => ({ immersive: false }), focused: () => null,
     shared: key => key === 'aquarium.paused' ? false : key === 'aquarium.free' ? free : undefined,
     setShared() {}, run() {}, appWindow: () => ({ active: true }), window: { viewport_size: () => ({ width: 900, height: 500 }) }, Date: { now: () => now },
   });

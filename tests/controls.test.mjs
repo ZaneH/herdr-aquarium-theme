@@ -28,7 +28,8 @@ function fixture(settings = new Map(), immersive = false, viewport = { width: 22
     return node;
   }
   const env = {
-    ...presentation, View: class {}, agents: () => [], terminals: () => [], theme: () => ({}),
+    ...model, ...presentation, spaces: () => animationCase?.spaces || [],
+    View: class {}, agents: () => [], terminals: () => [], theme: () => ({}),
     props: () => ({ immersive, terminal: animationCase?.terminal }), shared: key => settings.get(key),
     run: (name, args) => commands.push([name, args]),
     nextCommand: () => new Promise(resolve => { receive = resolve; }),
@@ -39,7 +40,7 @@ function fixture(settings = new Map(), immersive = false, viewport = { width: 22
     floatingSchoolGeometry: () => ({ layouts: [], height: 178 }),
   };
   if (animationCase) Object.assign(env, model, {
-    agents: () => animationCase.agents, terminals: () => [], focused: () => null,
+    agents: () => animationCase.agents, terminals: () => animationCase.terminals || [], focused: () => null,
   });
   for (const name of ['div', 'image', 'h_flex', 'v_flex']) env[name] = asset => {
     const node = element(name);
@@ -204,4 +205,77 @@ test('layout-switch callbacks suspend source then request target resume in order
   assert.equal(nav.commands.length, 2);
   await workspace.deliver('resume');
   assert.equal(workspace.view.suspended, false);
+});
+
+
+test('picker is stationary, bounded, lazy, and closes mutually with Options', () => {
+  const data = { agents: [{ address: 't1', space: 's1', status: 'idle', title: 'A', program: { name: 'Pi' } }],
+    spaces: [{ id: 's1', machine: null }] };
+  const f = fixture(new Map([['aquarium.free', false]]), false, { width: 220, height: 240 }, data);
+  let nodes = f.render();
+  const controls = nodes.get('aquarium-controls');
+  assert.ok('absolute' in controls.values && 'flex_wrap' in controls.values);
+  const subtreeIds = node => [node?.values?.id, ...(node?.childNodes || []).flatMap(subtreeIds)];
+  assert.ok(!subtreeIds(nodes.get('school-scroll')).includes('aquarium-fish-picker'));
+  assert.ok(subtreeIds(controls).includes('aquarium-fish-picker'));
+  controls.values.on_size_change({ width: 186, height: 64 }, f.cx);
+  nodes = f.render();
+  assert.equal(nodes.get('school-scroll').values.top, 84);
+  assert.equal(nodes.get('aquarium-fish-picker-scroll').values.w, 196);
+  assert.equal(nodes.get('aquarium-fish-picker-scroll').values.max_h, 216);
+  nodes.get('aquarium-options').values.on_open_change(true, f.cx);
+  nodes.get('aquarium-fish-picker').values.on_open_change(true, f.cx);
+  assert.equal(f.view.optionsOpen, false);
+  nodes = f.render();
+  const staleChoice = nodes.get('aquarium-fish-choice-koi').values.on_change;
+  nodes.get('aquarium-options').values.on_open_change(true, f.cx);
+  assert.equal(f.view.pickerTarget, null);
+  staleChoice(true);
+  assert.equal(f.render().get('aquarium-fish-species').childNodes.length, 0);
+});
+
+test('fish picker persists validated family choices and captures intended target', () => {
+  const program = { name: 'Pi' };
+  const a = { address: 't1', space: 's1', title: 'A', status: 'idle', program };
+  const b = { ...a, address: 't2', space: 'remote/s1', title: 'B' };
+  const child = { ...a, address: 'child' };
+  const data = { agents: [a, b, child], terminals: [{ address: 'child', parent: 't1' }],
+    spaces: [{ id: 's1', machine: null }, { id: 'remote/s1', machine: 'remote' }] };
+  const settings = new Map([['aquarium.free', false]]);
+  const f = fixture(settings, false, undefined, data);
+  let nodes = f.render();
+  assert.equal(settings.size, 1, 'render never writes');
+  assert.equal(f.allNodes().filter(n => n.values.id === 'aquarium-fish-picker').length, 1);
+  assert.equal(nodes.get('aquarium-fish-species').childNodes.length, 0, 'closed picker builds no preview rows');
+  nodes.get('fish-t1').values.on_hover(true, f.cx);
+  nodes.get('fish-t1').values.on_hover(false, f.cx);
+  nodes = f.render();
+  nodes.get('aquarium-fish-picker').values.on_open_change(true, f.cx);
+  f.view.hovered = 't2';
+  nodes = f.render();
+  assert.equal(nodes.get('aquarium-fish-species').childNodes.length, 26);
+  assert.ok('flex_none' in nodes.get('aquarium-fish-species').values);
+  nodes.get('aquarium-fish-choice-clownfish').values.on_change(true);
+  const key = model.familyChoiceKey(a, data.spaces);
+  assert.equal(settings.get(key), 'clownfish');
+  assert.equal(settings.has(model.familyChoiceKey(b, data.spaces)), false);
+  const copy = fixture(settings, false, undefined, data);
+  nodes = copy.render();
+  for (const address of ['t1', 'child']) {
+    const fish = nodes.get(`fish-${address}`);
+    const assets = [];
+    const walk = n => { if (n?.values?.asset) assets.push(n.values.asset); for (const c of n?.childNodes || []) walk(c); };
+    walk(fish);
+    assert.ok(assets.some(asset => asset.includes('/clownfish.png')), address);
+  }
+  nodes.get('aquarium-fish-picker').values.on_open_change(true, copy.cx);
+  assert.equal(copy.render().get('aquarium-fish-choice-clownfish').values.checked, true);
+  settings.set(key, 'not-a-fish');
+  assert.equal(copy.render().get('aquarium-fish-choice-automatic').values.checked, true);
+  assert.equal(model.fishAsset(a, true, false, a.address, false, 'right', 'bad'), model.fishAsset(a, true, false));
+  copy.render().get('aquarium-fish-choice-automatic').values.on_change(true);
+  assert.equal(settings.get(key), null);
+  assert.equal(model.familyChoiceKey({ ...a, space: 'missing' }, data.spaces), null);
+  assert.notEqual(key, model.familyChoiceKey({ ...a, space: b.space }, data.spaces));
+  assert.notEqual(key, model.familyChoiceKey({ ...a, address: 'another' }, data.spaces));
 });

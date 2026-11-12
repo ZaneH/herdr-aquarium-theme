@@ -140,6 +140,21 @@ test('a blocked descendant holds its working family; resolving attention resumes
   assert.deepEqual(f.view.motion.get('parent').state.from, expected);
 });
 
+test('open species picker holds only its captured family and closing respects pause', () => {
+  const f = fixture();
+  f.sync();
+  f.fire(250);
+  f.view.pickerTarget = { address: 'parent', key: 'verified-choice' };
+  f.clock.now = 1000;
+  f.sync();
+  assert.equal(f.view.motion.get('parent').state.phase, 'parked');
+  f.view.pickerTarget = null;
+  f.sync(false);
+  assert.equal(f.view.motion.get('parent').state.phase, 'parked');
+  f.sync();
+  assert.equal(f.view.motion.get('parent').state.phase, 'ready');
+});
+
 test('resize clamps the baseline; departed families and close cancel pending work', async () => {
   const f = fixture();
   f.sync();

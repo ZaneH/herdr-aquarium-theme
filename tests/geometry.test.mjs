@@ -151,7 +151,7 @@ test('actual render preserves all child hit targets, paused offsets and resize i
   }
   let free = true;
   const commands = [];
-  const env = { ...model, ...presentation, View: class {}, agents: () => agents, terminals: () => terminals,
+  const env = { ...model, ...presentation, spaces: () => [], View: class {}, agents: () => agents, terminals: () => terminals,
     theme: () => ({}), props: () => ({}), focused: () => null, shared: key => key === 'aquarium.free' ? free : undefined,
     run: (command, args) => commands.push({ command, args }),
     appWindow: () => ({ active: true }), window: { viewport_size: () => ({ width: 220, height: 240 }) } };
@@ -167,7 +167,7 @@ test('actual render preserves all child hit targets, paused offsets and resize i
   function render() {
     nodes = [];
     view.render({});
-    const fish = nodes.filter(n => n.values.id?.startsWith('fish-'));
+    const fish = nodes.filter(n => agents.some(a => n.values.id === `fish-${a.address}`));
     assert.equal(fish.length, agents.length);
     assert.equal(new Set(fish.map(n => n.values.tab_index)).size, agents.length);
     for (const n of fish) {

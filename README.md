@@ -121,3 +121,21 @@ Code, documentation, and original habitat/atmosphere art (surface, halos, shimme
 Fish art: **[Polyy.AI — 2D Fish Sprites Pack](https://polyyai.itch.io/2d-fish-sprites-pack)**, supplied under a **CC0 1.0 public-domain dedication**. Cropped frames, recolored gold variants, and animated routes are derived from that pack. Its supplied terms are preserved verbatim at [mods/aquarium/assets/LICENSE.txt](mods/aquarium/assets/LICENSE.txt); the pack also states not to resell its unmodified files as your own asset pack. The MIT license does not replace those asset terms.
 
 [RECIPE.md](RECIPE.md) describes the layout and behavior for a fresh native build.
+
+
+### Saved family fish
+Hover a fish, then use the single stationary **Choose fish** control beside
+Options. Its popover names the captured family and offers 25 named previews plus
+**Automatic** reset. Children inherit the leader's choice; motion/facing and
+status semantics are unchanged. Opening holds that family's drift until closed,
+and moving the pointer elsewhere cannot redirect an open picker. Controls wrap
+in narrow panes and reserve their measured height above the school. Roots without
+a verified native space identity have a disabled picker.
+Preferences use persisted `shared`/`setShared`, keyed by machine, native space ID
+and leader terminal address (not project title or folder). Automatic keeps the
+existing address-based assignment; unknown saved species fall back to it.
+Choices are retained while projects/remote machines are absent. No reliable
+project-close event is used: stale selections remain until Automatic resets them;
+cleared keys may remain in the host store. Automatic cleanup is not claimed. Native keyboard,
+preview/trigger hit layout, and persistence across a physical app restart remain
+unverified; Node descriptor tests and source checking are not those checks.
