@@ -83,7 +83,7 @@ test('all species: family poses follow sampled travel regardless of child status
         const asset = fishAsset({ address: 'unrelated-child', status }, false, true, address, true, m.face);
         const species = speciesFor(address);
         const eel = species === 'moray_eel';
-        const fin = ['betta', 'fancy_goldfish', 'freshwater_angelfish'].includes(species);
+        const fin = ['betta', 'fancy_goldfish', 'freshwater_angelfish', 'manta_ray'].includes(species);
         const animation = eel ? 'body' : fin ? 'fin' : 'tail';
         const looping = eel || fin
           || ['clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout', 'sockeye_salmon', 'piranha', 'swordfish', 'bluefin_tuna', 'channel_catfish', 'anglerfish'].includes(species);

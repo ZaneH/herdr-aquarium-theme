@@ -545,10 +545,10 @@ test('picker preview follows the choice with honest motion labels and full gatin
   leader.status = 'working';
 
   // A still-only species stays honest even with motion on.
-  const still = preview(new Map([...moving, [key, 'manta_ray']]));
-  assert.ok(still.asset.endsWith('/manta_ray.png'), still.asset);
+  const still = preview(new Map([...moving, [key, 'lionfish']]));
+  assert.ok(still.asset.endsWith('/lionfish.png'), still.asset);
   assert.equal(still.note, 'Still portrait');
-  assert.equal(still.name, 'Manta Ray');
+  assert.equal(still.name, 'Lionfish');
 
   // Automatic resolves through the family leader's address, not the opener's.
   const automatic = preview(new Map(moving));

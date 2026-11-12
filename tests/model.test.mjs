@@ -128,7 +128,7 @@ test('moray eel: floating body wave from mirrored canonical side art, stills mat
 });
 
 test('flowing-fin species loop from their own stills, fallbacks reuse norm/gold poses', () => {
-  for (const species of ['betta', 'fancy_goldfish', 'freshwater_angelfish']) {
+  for (const species of ['betta', 'fancy_goldfish', 'freshwater_angelfish', 'manta_ray']) {
     for (const face of ['left', 'right']) for (const turning of [true, false]) {
       for (const status of ['working', 'idle', 'blocked', 'done', 'unknown']) for (const paused of [true, false]) {
         const asset = fishAsset({ address: 'child', status }, paused, turning, 'leader', true, face, species);
@@ -139,6 +139,7 @@ test('flowing-fin species loop from their own stills, fallbacks reuse norm/gold 
       }
     }
     // Organized travelling clips are untouched for the fin species too.
+    // The manta wing-flap loop is in the same set: wings flex, whiptail fixed.
     for (const turning of [true, false]) for (const paused of [true, false]) {
       assert.equal(fishAsset({ address: 'child', status: 'working' }, paused, turning, 'leader', false, 'left', species),
         paused ? `${species}.png` : `${species}-${turning ? 'swim' : 'glide'}.webp`);

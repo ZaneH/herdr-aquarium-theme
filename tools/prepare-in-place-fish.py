@@ -160,7 +160,9 @@ def build_eel(output):
 # the torso ellipse + head disc stay byte-exact; outside that core a small
 # 2D inverse warp with a per-species motion field and premultiplied bilinear
 # sampling makes the fins flow. Still/gold fallbacks reuse the existing norm
-# and gold PNG poses as-is (both facings already face correctly).
+# and gold PNG poses as-is (both facings already face correctly). The manta
+# ray reuses the same engine with an optional motion region so its whiptail
+# band stays byte-exact while the wings flex.
 def _betta_motion(prof):
     tx = prof['torso'][0]
     def motion(x, y):
@@ -172,6 +174,25 @@ def _goldfish_motion(prof):
     tx = prof['torso'][0]
     def motion(x, y):
         return 0.25, 1.0, math.tau * prof['s'] * (x - tx) / 20.0
+    return motion
+
+
+def _manta_region(x, y, prof):
+    # Wings flap; the whiptail band (x0, x1, y0, y1) stays byte-exact so the
+    # long thin tail and its dots are never resampled.
+    x0, x1, y0, y1 = prof['tailband']
+    if x0 <= x <= x1 and y0 <= y <= y1:
+        return False
+    return fin_influence(x, y, prof) > 0
+
+
+def _manta_motion(prof):
+    ty = prof['torso'][1]
+    n = math.hypot(0.15, 0.99)
+
+    def motion(x, y):
+        # Mostly vertical wing flex; the unit vector bounds displacement.
+        return 0.15 / n, 0.99 / n, math.tau * (y - ty) / 60.0
     return motion
 
 
@@ -208,6 +229,15 @@ FIN_PROFILES = {
     ('freshwater_angelfish', 'left'): dict(
         file='freshwater_angelfish-left.png', torso=(46, 46, 20, 17), head=(26, 44, 11),
         s=-1.0, amp=2.0, ramp=2.75, motion=_angelfish_motion),
+    # Manta ray: pectoral wings flap, whiptail band (tail + dots) byte-exact.
+    ('manta_ray', 'right'): dict(
+        file='manta_ray.png', torso=(59, 49, 15, 8), head=(75, 49, 7),
+        tailband=(0, 43, 46, 53), amp=2.0, ramp=3.0,
+        region=_manta_region, motion=_manta_motion),
+    ('manta_ray', 'left'): dict(
+        file='manta_ray-left.png', torso=(43, 49, 14, 8), head=(24, 49, 8),
+        tailband=(55, 95, 46, 53), amp=2.0, ramp=3.0,
+        region=_manta_region, motion=_manta_motion),
 }
 
 
@@ -223,9 +253,10 @@ def fin_influence(x, y, prof):
 
 def fin_frames(source, species, facing, count=FRAME_COUNT):
     """Inverse warp: out(x,y) = source(x - dx, y - dy); identity (byte copy)
-    inside the protected core; premultiplied bilinear outside. The travelling
-    fin wave is never all-zero, so frame 0 is not the source still (documented
-    eel-approved deviation). Max displacement is capped at 2 px."""
+    inside the protected core; premultiplied bilinear outside. A profile with
+    a motion region (manta whiptail) also byte-copies pixels outside it. The
+    travelling fin wave is never all-zero, so frame 0 is not the source still
+    (documented eel-approved deviation). Max displacement is capped at 2 px."""
     key = (species, facing)
     if source.size != (SIZE, SIZE) or key not in FIN_PROFILES:
         raise ValueError('Expected a known fin species, a 96x96 portrait and right/left facing')
@@ -239,6 +270,9 @@ def fin_frames(source, species, facing, count=FRAME_COUNT):
         for x in range(SIZE):
             d = fin_influence(x, y, prof)
             w = _smoothstep(d / ramp) if d > 0 else 0.0
+            region = prof.get('region')
+            if region is not None and not region(x, y, prof):
+                w = 0.0
             ax, ay, ph = motion(x, y)
             vec = math.hypot(ax, ay)
             assert amp * vec <= 2.0 + 1e-9, (amp, ax, ay)

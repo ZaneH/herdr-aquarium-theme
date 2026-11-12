@@ -269,7 +269,7 @@ class EelBodyWaveTests(unittest.TestCase):
                 self.assertEqual(alpha_components(gold, thresh), alpha_components(normal, thresh))
 
 
-FIN_SPECIES = ('betta', 'fancy_goldfish', 'freshwater_angelfish')
+FIN_SPECIES = ('betta', 'fancy_goldfish', 'freshwater_angelfish', 'manta_ray')
 FIN_NEW_ASSETS = tuple(f'{s}-fin-{f}.webp' for s in FIN_SPECIES for f in ('right', 'left'))
 
 
@@ -302,8 +302,12 @@ class FinFlowTests(unittest.TestCase):
                         w = prepare._smoothstep(d / prof['ramp']) if d > 0 else 0.0
                         ax, ay, _ = motion(x, y)
                         self.assertLessEqual(w * prof['amp'] * math.hypot(ax, ay), 2.0 + 1e-9)
-                # The protected torso/head union stays RGBA byte-exact.
-                core = self._core_pixels(prof)
+                # The protected torso/head union stays RGBA byte-exact; the
+                # manta's separately byte-exact tailband counts toward the bar
+                # because its near-silhouette core is smaller.
+                core = set(self._core_pixels(prof))
+                x0, x1, y0, y1 = prof.get('tailband', (0, -1, 0, -1))
+                core.update((x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1))
                 self.assertGreater(len(core), 500)
                 sp = source.load()
                 for frame in frames:
@@ -360,6 +364,23 @@ class FinFlowTests(unittest.TestCase):
                                     self.assertGreaterEqual(dilated.load()[x, y], 16)
                     self.assertEqual(slot, 12)
         self.assertEqual(hashes, {p: hashlib.sha256(p.read_bytes()).digest() for p in sources})
+
+    def test_manta_tailband_stays_byte_exact(self):
+        """Whiptail band (whip + dots) is RGBA byte-exact in every frame,
+        checked over the whole declared box, not just outside the predicate."""
+        for facing in ('right', 'left'):
+            prof = prepare.FIN_PROFILES[('manta_ray', facing)]
+            x0, x1, y0, y1 = prof['tailband']
+            with Image.open(ROOT / f'mods/aquarium/assets/{prof["file"]}') as handle:
+                source = handle.convert('RGBA')
+                sp = source.load()
+                frames = prepare.fin_frames(source, 'manta_ray', facing)
+                self.assertEqual(len(frames), 12)
+                for frame in frames:
+                    px = frame.load()
+                    for x in range(x0, x1 + 1):
+                        for y in range(y0, y1 + 1):
+                            self.assertEqual(px[x, y], sp[x, y])
 
     def test_invalid_fin_dimensions_facing_and_species_are_rejected(self):
         cases = [(Image.new('RGBA', (10, 10)), 'betta', 'right'),

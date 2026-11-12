@@ -132,7 +132,7 @@ const IN_PLACE_TAIL = new Set(["clownfish", "blue_tang", "koi", "largemouth_bass
 // Flowing-fin loops: fixed torso/head core, fins warped in place. The still
 // and gold PNG poses already face correctly on both sides, so they are reused
 // as-is for paused/blocked/done fallbacks.
-const IN_PLACE_FIN = new Set(["betta", "fancy_goldfish", "freshwater_angelfish"]);
+const IN_PLACE_FIN = new Set(["betta", "fancy_goldfish", "freshwater_angelfish", "manta_ray"]);
 
 export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, facing = "right", choice = null) {
   const species = savedSpecies(choice) || speciesFor(speciesAddress);

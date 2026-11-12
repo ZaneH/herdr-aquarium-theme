@@ -72,20 +72,23 @@ Keyboard: lowercase `f` is bound to `aquarium.feed` under the tank's `Aquarium` 
 To test by hand: deploy the mod, open the aquarium, turn **Animate aquarium** and **Free-floating** on in Options (otherwise Feed is disabled and its tooltip says so), keep at least one **idle or working** family eligible (held/hovered, blocked and done fish do not feed), move the pointer off the fish, put the keyboard in the tank (click a tank control, e.g. Feed), press `f` (or click Feed): the label flips to **Feeding…** and a pellet appears mid-tank; at Slow speed wait out the native transition legs while up to three families steer toward it; after ten seconds the pellet expires and the label returns to **Feed**. Feed again only after it expires — one pellet at a time.
 
 The source sheets are **camera rotations, not fin-flapping animation**.
-Free-floating now has **15 animated species**: the eleven reviewed tail-loop fish,
-**moray eel** (curled body undulating around a fixed head) and three flowing-fin
+Free-floating now has **16 animated species**: the eleven reviewed tail-loop fish,
+**moray eel** (curled body undulating around a fixed head), three flowing-fin
 species — **betta, fancy goldfish, freshwater angelfish** — whose fixed torso and
-head stay byte-exact while the surrounding fins flow through a bounded 2 px warp.
+head stay byte-exact while the surrounding fins flow through a bounded 2 px warp,
+and **manta ray**, whose pectoral wings flex through the same bounded warp while
+its long whiptail band stays byte-exact.
 Eel left/right loops and still/gold fallbacks use matched, mirrored side artwork so
 it faces its route correctly. The tail-loop species retain their fixed bodies and
 bounded caudal motion; the eel deliberately allows body deformation; the fin
-species keep body and face frozen and move only the fins.
+species keep body and face frozen and move only the fins; the manta moves only
+its wings and keeps the tail fixed.
 
 All loops use twelve intended 100 ms slots. The WebP encoder may coalesce identical
 frames, but the decoded 1200 ms timeline is tested slot by slot. Enable Animate
 aquarium to use supported working/idle loops; hovering holds travel while the
 in-place animation can continue. Paused/inactive/blocked/done fish use still/gold
-art. **10 species remain still** while work continues toward all 25; see
+art. **9 species remain still** while work continues toward all 25; see
 [animation coverage](docs/animation-coverage.md). Organized keeps the original
 travelling/turning clips. These are procedural 2D loops, not restored authored
 swimming or 3D rotations. Offline eel and flowing-fin artwork is reviewed; native
