@@ -169,7 +169,9 @@ test('resize clamps the baseline; departed families and close cancel pending wor
   assert.equal(f.view.motion.size, 0);
   f.sync();
   const resumed = f.tasks.at(-1);
+  f.view.pickerTarget = { address: 'parent', key: 'verified-choice' };
   await f.view.close();
+  assert.equal(f.view.pickerTarget, null);
   assert.ok(resumed.cancelled);
   assert.equal(f.view.motionDue, Infinity);
   const notifications = f.cx.notifications;

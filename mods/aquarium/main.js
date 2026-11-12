@@ -40,6 +40,7 @@ export default class Aquarium extends View {
 
   stopMotion() {
     // All callers stop aquarium activity (close, explicit navigation, or inactive window).
+    this.pickerTarget = null;
     for (const task of this.shimmers.values()) task.cancel();
     this.shimmers.clear();
     this.motionTask?.cancel();
