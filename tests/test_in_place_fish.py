@@ -11,7 +11,8 @@ spec = importlib.util.spec_from_file_location('in_place', ROOT / 'tools/prepare-
 prepare = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(prepare)
 
-SPECIES = ('clownfish', 'blue_tang', 'koi')
+SPECIES = ('clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout',
+           'sockeye_salmon', 'piranha', 'swordfish')
 FACINGS = (('right', ''), ('left', '-left'))
 
 

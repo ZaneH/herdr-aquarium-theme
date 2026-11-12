@@ -20,9 +20,16 @@ FRAME_COUNT = 12
 # wide; shearing its blue body would deform the palette mark and outline.
 # Koi is also a clean side view: its forked caudal fin starts 22 columns from
 # the rear edge, and the pelvic/anal fins beside it stay in the fixed body.
+# The reviewed batch below adds conventional forked/lunate caudal fins whose
+# peduncle is clear of other fins; each facing is measured on its own still.
 TAIL_EDGE = {'clownfish': {'right': 48, 'left': 47},
              'blue_tang': {'right': 24, 'left': 71},
-             'koi': {'right': 22, 'left': 73}}
+             'koi': {'right': 22, 'left': 73},
+             'largemouth_bass': {'right': 22, 'left': 76},
+             'rainbow_trout': {'right': 18, 'left': 77},
+             'sockeye_salmon': {'right': 16, 'left': 79},
+             'piranha': {'right': 23, 'left': 72},
+             'swordfish': {'right': 14, 'left': 82}}
 
 
 def tail_frames(source, facing, species='clownfish'):

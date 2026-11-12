@@ -128,7 +128,7 @@ export function speciesName(species) {
 
 // Reviewed in-place tail loops: conventional side views whose caudal fin is
 // separate from the body. Expand only after per-species anatomy/facing review.
-const IN_PLACE_TAIL = new Set(["clownfish", "blue_tang", "koi"]);
+const IN_PLACE_TAIL = new Set(["clownfish", "blue_tang", "koi", "largemouth_bass", "rainbow_trout", "sockeye_salmon", "piranha", "swordfish"]);
 
 export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, facing = "right", choice = null) {
   const species = savedSpecies(choice) || speciesFor(speciesAddress);
