@@ -370,9 +370,15 @@ export default class Aquarium extends View {
     this.syncMotion(floats, free && animate, speed, turning, cx);
     const schoolView = free
       ? div().relative().w(bodyWidth).h(floatingSchool.height).flex_none()
-        .when(this.food, el => el.child(div().id("aquarium-food").absolute()
-          .left(this.food.x - 4).top(this.food.y - 4).size(8).rounded_full()
-          .bg("#c98a3d").border(1).border_color("#8a5a2b")))
+        .when(this.food, el => el
+          // Feedback ripple shares the pellet's lifetime: pause/inactivity clearFood removes both.
+          .child(div().id("aquarium-food-halo").absolute()
+            .left(this.food.x - 16).top(this.food.y - 16).size(32).rounded_full()
+            .border(1).border_color("#c98a3d")
+            .when(animate, halo => halo.loop("opacity", { from: 0, to: 0.5, period: 1800 })))
+          .child(div().id("aquarium-food").absolute()
+            .left(this.food.x - 4).top(this.food.y - 4).size(8).rounded_full()
+            .bg("#c98a3d").border(1).border_color("#8a5a2b")))
         .children(floats.map(({ leader, children, layout: g }) => {
           const entry = this.motion.get(leader.address);
           const m = entry.state;

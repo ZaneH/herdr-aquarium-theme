@@ -123,6 +123,8 @@ test('actual tank descriptors use static assets and omit loops when suspended or
     f.view.suspended = state === 'suspended';
     // Keep a preexisting shimmer to ensure rendering itself suppresses its loop too.
     f.view.shimmers.set('done', { cancel() {} });
+    // Keep preexisting food to ensure the pellet and its feedback ripple drop together.
+    f.view.food = { x: 40, y: 40 };
     f.render();
     const nodes = f.allNodes();
     const loops = nodes.filter(n => n.values.loop);
@@ -138,6 +140,7 @@ test('actual tank descriptors use static assets and omit loops when suspended or
       assert.ok(assets.some(a => /-swim\.webp$/.test(a)));
     } else {
       assert.equal(loops.length, 0, state);
+      assert.ok(!nodes.some(n => n.values.id === 'aquarium-food-halo'), state);
       assert.ok(assets.some(a => /bubbles-.*\.png$/.test(a)));
       assert.ok(assets.every(a => !a.endsWith('.webp')), state);
     }
@@ -343,6 +346,11 @@ test('Feed is a bounded cosmetic control: disabled when not swimming, one pellet
   assert.equal(rendered.get('aquarium-feed').values.disabled, true);
   assert.equal(rendered.get('aquarium-feed').childNodes[0], 'Feeding…');
   assert.equal(rendered.get('aquarium-food').values.left, food.x - 4);
+  // Feed feedback: a halo pulse rides the pellet and both share its lifetime.
+  const halo = rendered.get('aquarium-food-halo');
+  assert.deepEqual([halo.values.loop[0], halo.values.loop[1].from, halo.values.loop[1].to,
+    halo.values.loop[1].period], ['opacity', 0, 0.5, 1800]);
+  assert.equal(halo.values.left, food.x - 16);
   // Disabled reason is discoverable from the control itself.
   assert.match(idle.get('aquarium-feed').values.tooltip, /Options/);
   assert.match(idle.get('aquarium-feed').values.tooltip, /free-floating/i);
@@ -356,4 +364,14 @@ test('Feed is a bounded cosmetic control: disabled when not swimming, one pellet
   assert.equal(on.view.food, null);
   assert.equal(on.render().get('aquarium-feed').values.disabled, true);
   assert.equal(on.render().has('aquarium-food'), false);
+  assert.equal(on.render().has('aquarium-food-halo'), false);
+  // Navigation suspends the effect the same way: no food, no halo.
+  const awake = fixture(new Map([['aquarium.paused', false], ['aquarium.free', true]]));
+  awake.listen();
+  await awake.deliver('feed');
+  assert.ok(awake.view.food);
+  awake.view.suspended = true;
+  awake.render();
+  assert.equal(awake.view.food, null);
+  assert.equal(awake.render().has('aquarium-food-halo'), false);
 });
