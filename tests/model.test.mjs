@@ -37,7 +37,7 @@ test('floating poses use explicit family heading, never an independent animation
       const asset = fishAsset({ address: 'child', status }, paused, turning, address, true, face);
       const species = speciesFor(address);
       const active = !paused && ['working', 'idle'].includes(status);
-      assert.equal(asset, active && ['clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout', 'sockeye_salmon', 'piranha', 'swordfish'].includes(species)
+      assert.equal(asset, active && ['clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout', 'sockeye_salmon', 'piranha', 'swordfish', 'bluefin_tuna', 'channel_catfish'].includes(species)
         ? `${species}-tail-${face}.webp`
         : `${species}${face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`);
       assert.ok(existsSync(new URL(`../mods/aquarium/assets/${asset}`, import.meta.url)));
@@ -46,7 +46,7 @@ test('floating poses use explicit family heading, never an independent animation
 });
 
 test('in-place tail pilots loop only when active and never own facing or a travel route', () => {
-  for (const species of ['clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout', 'sockeye_salmon', 'piranha', 'swordfish']) {
+  for (const species of ['clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout', 'sockeye_salmon', 'piranha', 'swordfish', 'bluefin_tuna', 'channel_catfish']) {
     for (const face of ['left', 'right']) for (const turning of [true, false]) {
       for (const status of ['working', 'idle', 'blocked', 'done', 'unknown']) {
         for (const paused of [true, false]) {

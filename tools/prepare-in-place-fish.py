@@ -29,7 +29,9 @@ TAIL_EDGE = {'clownfish': {'right': 48, 'left': 47},
              'rainbow_trout': {'right': 18, 'left': 77},
              'sockeye_salmon': {'right': 16, 'left': 79},
              'piranha': {'right': 23, 'left': 72},
-             'swordfish': {'right': 14, 'left': 82}}
+             'swordfish': {'right': 14, 'left': 82},
+             'bluefin_tuna': {'right': 21, 'left': 76},
+             'channel_catfish': {'right': 21, 'left': 74}}
 
 
 def tail_frames(source, facing, species='clownfish'):
