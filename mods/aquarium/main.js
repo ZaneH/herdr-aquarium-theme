@@ -233,12 +233,15 @@ export default class Aquarium extends View {
       const travelWidth = presentation.travelWidth;
       const haloSize = 180 * scale;
       const motion = this.motion.get(leader.address);
+      const face = motion?.state.face ?? "right";
+      // shortcut: keep active facing pairs until native swap/decode timing is verified.
+      const facings = animate ? ["right", "left"] : [face];
       const pose = free
         ? div().id(`pose-${a.address}-${motion?.version}`).relative().size_full()
           .opacity(motion?.state.opacity ?? 1)
           .when(turning && animate, el => el.transition("opacity", 200))
-          .children(["right", "left"].map(facing => image(`${ART}/${fishAsset(a, !animate, turning, leader.address, true, facing, choice)}`)
-            .absolute().top(0).left(0).size_full().opacity((motion?.state.face ?? "right") === facing ? 1 : 0)))
+          .children(facings.map(facing => image(`${ART}/${fishAsset(a, !animate, turning, leader.address, true, facing, choice)}`)
+            .absolute().top(0).left(0).size_full().opacity(face === facing ? 1 : 0)))
         : image(`${ART}/${fishAsset(a, !animate, turning, leader.address, false, "right", choice)}`).size_full();
       const fish = div().id(`art-${a.address}`).absolute().top(presentation.top)
         .left(traveling ? (width - travelWidth) / 2 : (width - fishSize) / 2)

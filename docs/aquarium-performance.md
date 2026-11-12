@@ -397,3 +397,18 @@ tree size, subject to smooth-turn/attention/facing regressions. The sample does 
 establish whether invisible images incur measurable work or predict a native CPU
 saving. No GPU, FPS, resource-acceptance or exclusive-attribution claim follows
 from this single capture.
+
+Source-tree result for the `drawFish`/`pose` candidate: the redundant second
+facing image is removed only in non-animating free renders (pause, suspension,
+inactive window), which now build exactly one selected-facing image per fish —
+one fewer image description per fish per parked frame. While animating, both
+facings stay mounted deliberately: the hard turn (turning disabled) swaps facing
+instantly at full container opacity and the smooth turn reveals the new facing
+over a 200 ms container fade. Retaining the pair is a conservative choice pending
+native swap/decode timing checks, not evidence that a single image cannot work.
+Decoded-image residency is documented above as unestablished, and this pass did
+not validate native swap/decode timing.
+The active-window benchmark cases are unchanged by design (they legitimately
+retain both facings), so no render/median movement there is expected or claimed.
+This is a description-count change in parked frames only; it is not a native
+CPU, FPS, GPU or memory benefit claim.

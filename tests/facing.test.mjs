@@ -91,3 +91,111 @@ test('all species: family poses follow sampled travel regardless of child status
   }
   assert.equal(species.size, 25);
 });
+
+// Render-level facing mount regression: source description counts, not native paint.
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
+import * as model from '../mods/aquarium/model.js';
+import { fishPresentation, familyNeedsAttention } from '../mods/aquarium/presentation.js';
+
+const mainSource = readFileSync(new URL('../mods/aquarium/main.js', import.meta.url), 'utf8')
+  .replace(/^import .*;\n/gm, '')
+  .replace('export default class Aquarium', 'globalThis.Aquarium = class Aquarium');
+
+function renderFixture({ paused = false, active = true, suspended = false, turning = true, agents }) {
+  let nodes = [];
+  const element = (type, id) => {
+    const values = { id }, children = [];
+    const node = new Proxy({ type, values, childNodes: children }, { get(target, key) {
+      if (key in target) return target[key];
+      return (...args) => {
+        if (key === 'child') children.push(args[0]);
+        else if (key === 'children') children.push(...args[0]);
+        else if (key === 'when') { if (args[0]) args[1](node); }
+        else values[key] = args.length === 1 ? args[0] : args;
+        return node;
+      };
+    } });
+    nodes.push(node);
+    return node;
+  };
+  const cx = { notify() {}, timer: { after() { return { cancel() {} }; } } };
+  const Aquarium = runInNewContext(`${mainSource}\nAquarium;`, {
+    ...model, parkMotion, startMotion, advanceMotion,
+    fishPresentation, familyNeedsAttention, View: class {}, agents: () => agents, terminals: () => [], spaces: () => [],
+    theme: () => ({}), props: () => ({}), focused: () => null,
+    shared: key => key === 'aquarium.paused' ? paused : key === 'aquarium.turning' ? turning : undefined,
+    setShared() {}, run() {}, nextCommand: () => new Promise(() => {}),
+    appWindow: () => ({ active }), window: { viewport_size: () => ({ width: 900, height: 500 }) },
+    div: () => element('div'), image: asset => { const n = element('image'); n.values.asset = `${asset}`; return n; },
+    h_flex: () => element('h_flex'), v_flex: () => element('v_flex'),
+    ...Object.fromEntries(['Button', 'Switch', 'Radio', 'RadioGroup', 'Popover'].map(k => [k, { new: id => element(k, id) }])),
+  });
+  const view = new Aquarium();
+  Object.assign(view, { size: { width: 900, height: 500 }, motion: new Map(), motionDue: Infinity,
+    motionGeneration: 0, previous: new Map(), shimmers: new Map(), food: null, suspended });
+  const render = () => { nodes = []; view.render(cx); return nodes; };
+  render();
+  return { view, cx, render };
+}
+
+function posesFor(nodes, view, address) {
+  const version = view.motion.get(address)?.version;
+  const pose = nodes.find(n => n.type === 'div' && n.values.id === `pose-${address}-${version}`);
+  assert.ok(pose, `pose element for ${address}`);
+  return pose.childNodes.map(img => ({ asset: `${img.values.asset}`, opacity: img.values.opacity }));
+}
+
+const flatAgents = statuses => statuses.map((status, i) => ({
+  address: `t${i}`, status, title: `T${i}`, program: { name: 'fixture', agent: true },
+}));
+
+test('free fish mount both facings while animating, one selected image when parked', () => {
+  const agents = flatAgents(['working', 'idle', 'blocked', 'done']);
+  // Animating (active window, not paused): both facings mounted, exactly one visible.
+  for (const turning of [true, false]) {
+    const f = renderFixture({ agents, turning });
+    for (const a of agents) {
+      const mine = posesFor(f.render(), f.view, a.address);
+      assert.equal(mine.length, 2, `turning=${turning}: two facing images mounted for ${a.address}`);
+      const face = f.view.motion.get(a.address).state.face;
+      const expected = ['right', 'left'].map(facing => `mods/aquarium/assets/${fishAsset(a, false, turning, a.address, true, facing)}`);
+      assert.deepEqual(mine.map(p => p.asset).sort(), expected.sort(), `turning=${turning}: both reviewed facings for ${a.address}`);
+      assert.equal(mine.filter(p => p.opacity === 1).length, 1, `turning=${turning}: one visible facing for ${a.address}`);
+      assert.equal(mine.find(p => p.opacity === 1).asset, `mods/aquarium/assets/${fishAsset(a, false, turning, a.address, true, face)}`,
+        `turning=${turning}: selected facing matches motion face for ${a.address}`);
+    }
+  }
+  // Parked states cannot reverse facing, so exactly one selected image is mounted.
+  for (const parked of [{ paused: true }, { active: false }, { suspended: true }]) {
+    const f = renderFixture({ agents, ...parked });
+    for (const a of agents) {
+      const entry = f.view.motion.get(a.address);
+      const face = entry.state.face;
+      const mine = posesFor(f.render(), f.view, a.address);
+      assert.equal(mine.length, 1, `${JSON.stringify(parked)}: one image per parked fish ${a.address}`);
+      assert.equal(mine[0].opacity, 1, `${JSON.stringify(parked)}: parked image is the selected facing`);
+      assert.equal(mine[0].asset, `mods/aquarium/assets/${fishAsset(a, true, true, a.address, true, face)}`,
+        `${JSON.stringify(parked)}: ${a.address} keeps its selected static facing`);
+    }
+  }
+});
+
+test('selected facing follows motion reversals and fade phases with both facings mounted', () => {
+  const agents = flatAgents(['working']);
+  const f = renderFixture({ agents });
+  const entry = f.view.motion.get('t0');
+  let state = entry.state;
+  const seen = new Set();
+  for (let step = 0; step < 200; step++) {
+    state = advanceMotion(state, entry.geometry, state.due, 'slow', true);
+    entry.state = state;
+    seen.add(state.face);
+    const mine = posesFor(f.render(), f.view, 't0');
+    assert.equal(mine.length, 2, `phase ${state.phase}: both facings stay mounted across reversals`);
+    assert.equal(mine.filter(p => p.opacity === 1).length, 1, `phase ${state.phase}: exactly one selected facing`);
+    assert.equal(mine.find(p => p.opacity === 1).asset, `mods/aquarium/assets/${fishAsset(agents[0], false, true, 't0', true, state.face)}`,
+      `phase ${state.phase}: selected facing follows the motion face through fade-out/fade-in`);
+  }
+  assert.deepEqual([...seen].sort(), ['left', 'right'], 'reversals in both directions covered');
+});
