@@ -42,6 +42,35 @@ the first root, so production discovery, family grouping and blocked attention
 can be observed without creating or changing a real terminal. Documentation,
 hashes and the two layout names are recorded in `fixture.json`.
 
+## Background and banner fidelity
+
+Both generated layouts carry the same background block as the non-immersive
+production `aquarium` layout — `{ "image":
+"mods/aquarium-native-fixture/assets/habitat-bright-v1.svg", "fit": "cover" }` —
+pointing at the byte-identical copied asset, so fixture captures show the real
+backdrop the production ink (`#0a2028`) and focus paints were chosen for. The
+path stays fixture-local (`aquarium-native-fixture`); production layouts,
+mods and assets are never touched. The provenance banner paints an explicit
+dark navy bar (`#173b46`) with white text (`#ffffff`) so it stays readable
+against the bright backdrop; that styling is on the diagnostic banner bar
+only, never the fish labels.
+
+The historical fixtures generated before this change omitted the background
+block entirely, so raw captures showed a dark scene and the navy fish labels were
+hard to read. That was a fixture fidelity gap only: it did **not** demonstrate a
+production contrast defect, because the production layouts always painted the
+versioned bright habitat behind the same ink. Native CPU/RSS comparisons
+recorded in `docs/aquarium-performance.md` were measured within that
+missing-background fixture; see the note there before comparing numbers.
+
+Native observation (2026-11-12): a fresh `--count 2 --paused` fixture shown
+once for 1.4 s painted the bright backdrop, dark fish labels and white-on-navy
+banner. The coordinator independently inspected the capture. Herdr was already
+frontmost; the original fixture files and selected layout were restored, with
+settings/shared/window/view hashes unchanged. Private evidence:
+`.git/aquarium-reports/fixture-background/2026-11-12T15-08-03Z/`.
+This is paint confirmation, not physical-input or performance acceptance.
+
 The shim:
 
 - returns synthetic agents, terminals and one synthetic space;

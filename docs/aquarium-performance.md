@@ -503,3 +503,18 @@ OFF` before and after; `status.errors` stayed `[]`; the owned fixture mod tree
 and both fixture layouts were restored byte-identical, `shared.json`,
 `window.json`, `settings.json` were byte-unchanged, and the captured current
 layout (`aquarium-immersive`) was restored.
+
+## Background fidelity note (2026-11-12, source `ff01452`)
+
+The earlier generator-based ordinary-school, food and terminal-lookup
+comparisons used fixtures without the production bright habitat background
+(`habitat-bright-v1.svg`, `fit: cover`). Their internally matched comparisons
+remain measurements of those isolated scenes, but omit the faithful production
+background cost. Dark fixture labels did not demonstrate a production contrast
+defect: the corresponding production layouts already provided the bright SVG.
+
+The generator now includes that byte-identical asset through a fixture-local
+layout background; native paint was independently confirmed (see
+`docs/native-fixture.md`). New background-bearing CPU/RSS windows are **not
+directly comparable** to old background-less windows without matched
+re-measurement. No CPU change is claimed from this fixture correction.

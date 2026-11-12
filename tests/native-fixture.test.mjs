@@ -195,7 +195,7 @@ test('refuses a custom live app home, including a symlink alias', () => {
   }
 });
 
-test('default fixtures stay byte-stable: no cycle code, metadata or layout change', () => {
+test('default fixtures omit cycle code, cycle metadata and cycle layout props', () => {
   assert.equal('attentionCycle' in prepared.fixture, false);
   const defaultShim = readFileSync(join(prepared.mod, 'fixture-herdr.js'), 'utf8');
   assert.equal(defaultShim.includes('attentionCycle'), false);
@@ -204,6 +204,28 @@ test('default fixtures stay byte-stable: no cycle code, metadata or layout chang
   assert.equal(defaultWrapper.includes('ATTENTION CYCLE'), false);
   assert.equal(defaultWrapper.includes('cycleTimers'), false);
   assert.deepEqual(JSON.parse(readFileSync(join(FIRST, 'layouts', `${MOD_NAME}-attention.json`), 'utf8')).children[0].content.props, { attention: true });
+});
+
+test('generated layouts carry the fixture-local bright habitat background, byte-identical to production non-immersive', () => {
+  const expected = { image: `mods/${MOD_NAME}/assets/habitat-bright-v1.svg`, fit: 'cover' };
+  const productionAsset = readFileSync(repo('assets/habitat-bright-v1.svg'));
+  for (const [dir, layoutName] of [
+    [FIRST, `${MOD_NAME}.json`],
+    [FIRST, `${MOD_NAME}-attention.json`],
+    [FOURTH, `${MOD_NAME}.json`],
+    [FOURTH, `${MOD_NAME}-attention.json`],
+  ]) {
+    const block = JSON.parse(readFileSync(join(dir, 'layouts', layoutName), 'utf8')).children[0];
+    assert.deepEqual(block.background, expected, `${layoutName} must match the non-immersive production background`);
+    assert.ok(!block.background.image.startsWith('mods/aquarium/'), 'background stays fixture-local');
+    assert.deepEqual(readFileSync(join(dir, block.background.image)), productionAsset, 'fixture habitat asset must be byte-identical to production');
+  }
+});
+
+test('provenance banner paints dark navy with white text over the bright backdrop, without touching fish pills', () => {
+  const wrapper = readFileSync(join(prepared.mod, 'main.js'), 'utf8');
+  assert.match(wrapper, /div\(\)\.flex_none\(\)\.px\(8\)\.py\(4\)\.bg\("#173b46"\)\.text_color\("#ffffff"\)\.text_size\(12\)/);
+  assert.equal((wrapper.match(/bg\("#173b46"\)/g) || []).length, 1, 'diagnostic banner bar only, never fish pill styling');
 });
 
 test('opt-in attention cycle drives working -> blocked -> working -> blocked with fixture-local timer dispatch', async () => {

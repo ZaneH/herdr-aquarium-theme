@@ -239,7 +239,7 @@ export default class NativeFixture extends Aquarium {
   render(cx) {
     const attention = props()?.attention ? " — ATTENTION: ONE BLOCKED NESTED CHILD" : "";${cycle ? cycleBanner : ""}
     return div().size_full().flex().flex_col()
-      .child(div().flex_none().px(8).py(4).text_size(12).child(BANNER + attention${cycle ? " + cycleText + interruptedText" : ""}))
+      .child(div().flex_none().px(8).py(4).bg("#173b46").text_color("#ffffff").text_size(12).child(BANNER + attention${cycle ? " + cycleText + interruptedText" : ""}))
       .child(div().flex_1().min_h(0).child(super.render(cx)));
   }
 }
@@ -247,10 +247,15 @@ export default class NativeFixture extends Aquarium {
 }
 
 function layout(attention, cycle) {
+  // Match production's bright backdrop so fixture contrast is representative.
   return {
     type: "row",
     titlebar: "none",
-    children: [{ type: "block", content: { mod: MOD_NAME, props: attention ? { attention: true, ...(cycle ? { cycle: true } : {}) } : {} } }],
+    children: [{
+      type: "block",
+      background: { image: `mods/${MOD_NAME}/assets/habitat-bright-v1.svg`, fit: "cover" },
+      content: { mod: MOD_NAME, props: attention ? { attention: true, ...(cycle ? { cycle: true } : {}) } : {} },
+    }],
   };
 }
 

@@ -37,6 +37,8 @@ test('unbacked lettering and keyboard focus contrast with habitat paints indepen
   assert.deepEqual(paints[0], paints[1]);
   // These are paint-level checks, not native rendering or keyboard acceptance.
   assert.match(source, /focus\(s => s.border_color\(tankInk.background\)\)/);
+  const labelRows = [...source.matchAll(/text_color\(tankInk.foreground\)/g)];
+  assert.ok(labelRows.length >= 2, 'two actual fish label rows must paint with tankInk.foreground, not an unused constant');
   assert.doesNotMatch(source, /bg\(tankInk.background\)/);
   assert.doesNotMatch(source, /hover\(s => s.bg\("#173b4614"\)/);
 });
