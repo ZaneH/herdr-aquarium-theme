@@ -8,7 +8,7 @@ from PIL import Image, ImageOps
 
 OUT = Path(__file__).resolve().parents[1] / 'mods/aquarium/assets'
 # Source models do not all share the same starting orientation.
-RIGHT = {'largemouth_bass': 15, 'freshwater_angelfish': 0}
+RIGHT = {'largemouth_bass': 15, 'freshwater_angelfish': 0, 'manta_ray': 0}
 
 
 def route(turning):
@@ -41,11 +41,11 @@ def prepare(archive):
             frames = [sheet.crop(((i % 8) * 96, (i // 8) * 96,
                                   (i % 8 + 1) * 96, (i // 8 + 1) * 96)) for i in range(30)]
             right = RIGHT.get(species, 22)
-            fish = frames[right]
-            fish.save(OUT / f'{species}.png')
-            gold = ImageOps.colorize(ImageOps.grayscale(fish), '#60401c', '#fff0a5', mid='#dba849')
-            gold.putalpha(fish.getchannel('A'))
-            gold.save(OUT / f'{species}-gold.png')
+            for suffix, fish in [('', frames[right]), ('-left', frames[(right + 15) % 30])]:
+                fish.save(OUT / f'{species}{suffix}.png')
+                gold = ImageOps.colorize(ImageOps.grayscale(fish), '#60401c', '#fff0a5', mid='#dba849')
+                gold.putalpha(fish.getchannel('A'))
+                gold.save(OUT / f'{species}{suffix}-gold.png')
             for turning in (False, True):
                 animation = []
                 for x, y, angle in route(turning):

@@ -95,7 +95,7 @@
               "id": "tank-view",
               "type": "block",
               "background": {
-                "image": "mods/aquarium/assets/habitat-full.svg",
+                "image": "mods/aquarium/assets/habitat-full-bright-v1.svg",
                 "fit": "cover"
               },
               "content": {
@@ -149,6 +149,6 @@
     }
   ],
   "theme": "aquarium",
-  "preview": "mods/aquarium/assets/habitat-full.svg",
+  "preview": "mods/aquarium/assets/habitat-full-bright-v1.svg",
   "terminal_opacity": 1
 }

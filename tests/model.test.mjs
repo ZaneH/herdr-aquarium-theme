@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { speciesFor, detailsFor, fishAsset, schoolGeometry, newCompletions, schoolFamilies } from '../mods/aquarium/model.js';
+import { speciesFor, detailsFor, fishAsset, schoolGeometry, newCompletions, schoolFamilies, floatingGeometry, surfaceGeometry } from '../mods/aquarium/model.js';
 
 test('fish assignment is stable and every selected sprite exists', () => {
   for (let i = 0; i < 100; i++) {
     const address = `machine/t${i}`;
     assert.equal(speciesFor(address), speciesFor(address));
-    for (const suffix of ['.png', '-gold.png', '-swim.webp', '-glide.webp']) {
+    for (const suffix of ['.png', '-left.png', '-gold.png', '-left-gold.png', '-swim.webp', '-glide.webp']) {
       assert.ok(existsSync(new URL(`../mods/aquarium/assets/${speciesFor(address)}${suffix}`, import.meta.url)));
     }
   }
@@ -30,6 +30,47 @@ test('motion and status select the right asset, including gold and blocked fish'
   assert.ok(fishAsset({ ...agent, status: 'blocked' }, false, true).endsWith('.png'));
 });
 
+test('floating poses use explicit family heading, never an independent animation clock', () => {
+  const address = 't7';
+  for (const paused of [true, false]) for (const turning of [true, false]) {
+    for (const status of ['working', 'idle', 'blocked', 'done']) for (const face of ['left', 'right']) {
+      const asset = fishAsset({ address: 'child', status }, paused, turning, address, true, face);
+      assert.equal(asset, `${speciesFor(address)}${face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`);
+      assert.ok(existsSync(new URL(`../mods/aquarium/assets/${asset}`, import.meta.url)));
+    }
+  }
+});
+
+test('floating families use bounded whole-tank paths and fit children without clipping', () => {
+  for (const width of [104, 240, 260, 800, 1600]) {
+    for (const height of [178, 300, 800]) {
+      for (const children of [0, 1, 2, 6, 30]) {
+        for (const address of ['t1', 't2', 'remote/t3']) {
+          const g = floatingGeometry(width, height, address, children);
+          assert.deepEqual(g, floatingGeometry(width, height, address, children));
+          assert.ok(g.width <= width);
+          for (const x of [g.x, g.maxX]) assert.ok(x >= 0 && x + g.width <= width + 0.00001);
+          for (const y of [g.y, g.maxY]) assert.ok(y >= 0 && y + g.height <= Math.max(height, g.height) + 0.00001);
+        }
+      }
+    }
+  }
+  const g = floatingGeometry(1200, 800, 't1', 0);
+  assert.ok(g.maxX > 700);
+  assert.ok(g.maxY > 300);
+});
+
+test('surface tiles overscan both ends throughout the whole wave movement', () => {
+  for (const width of [104, 400, 720, 1172, 1600, 2560, 8000]) {
+    const g = surfaceGeometry(width);
+    assert.equal(g.tileWidth / g.height, 400 / 48);
+    for (const left of [-g.travel, -g.travel / 2, 0]) {
+      assert.ok(left <= 0);
+      assert.ok(left + g.count * g.tileWidth >= width);
+    }
+  }
+});
+
 test('sub-agents form families through real parent chains, regardless of input order', () => {
   const leader = { address: 't1', status: 'working' };
   const child = { address: 't2', status: 'working' };
@@ -41,7 +82,7 @@ test('sub-agents form families through real parent chains, regardless of input o
   ]);
   assert.deepEqual(family, [
     { leader: unrelated, children: [] },
-    { leader, children: [{ agent: grandchild, depth: 2 }, { agent: child, depth: 1 }] },
+    { leader, children: [{ agent: grandchild, depth: 3 }, { agent: child, depth: 2 }] },
   ]);
   assert.equal(fishAsset(child, false, true, leader.address), fishAsset(leader, false, true));
   assert.equal(fishAsset(grandchild, false, true, leader.address), `${speciesFor(leader.address)}-gold.png`);

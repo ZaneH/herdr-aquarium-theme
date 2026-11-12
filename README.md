@@ -2,15 +2,19 @@
 
 Your coding agents, as a school of fish. Two native [Herdr GUI](https://herdr.dev) layouts: a practical workspace and a quiet, immersive tank. Both preserve the standard left sidebar.
 
-![Immersive aquarium in Herdr](preview.png)
+> **Release scope:** includes the waypoint-facing fix, compact native Options, seamless wave tiles, real child-agent discovery/navigation, and brighter native gallery. Motion remains opt-in and off on fresh installs. Moving-click comfort/crowded layouts ([#2](https://github.com/ZaneH/herdr-aquarium-theme/issues/2)) and performance/lifecycle/keyboard follow-ups ([#5](https://github.com/ZaneH/herdr-aquarium-theme/issues/5)) remain open; these are not claims of complete user acceptance.
 
-*Cropped in-app screenshot; agent labels blurred for privacy.*
+![Native Herdr aquarium workspace panel](preview.png)
+
+*Fresh native workspace-panel capture with five real fish and Options closed. Agent names and both details-strip lines are privacy-blurred; native colors, fish positions, status text, and controls are retained without grading or reconstruction. The surround and headings are presentation, not app UI. The panel was temporarily 500 px tall for capture, then restored to its normal 320 px.*
+
+Regenerate from the pinned sanitized input with `uv run --with pillow==11.3.0 python tools/prepare-preview.py` (build-time only). See [gallery direction and provenance](docs/gallery-direction.md).
 
 ## Two modes
 
 **Workspace** (`aquarium`): aquarium above your normal terminals. Tabs, splits, pane headers, Files/Changes, status bar, and shortcuts stay intact.
 
-**Immersive** (`aquarium-immersive`): the tank fills the workspace beside the sidebar. Click a fish to open its terminal at full workspace size. **Back to aquarium** returns to the water without closing the agent. **Workspace / Immersive** buttons switch layouts.
+**Immersive** (`aquarium-immersive`): the tank fills the workspace beside the sidebar. Click a mapped agent fish to open its terminal at full workspace size. Raw background children instead open Herdr’s native terminal peek, without replacing the tank. **Back to aquarium** returns to the water without closing the agent. **Workspace / Immersive** buttons switch layouts.
 
 ```sh
 herdr-app do layout.switch '{"name":"aquarium"}'
@@ -19,21 +23,26 @@ herdr-app do layout.switch '{"name":"aquarium-immersive"}'
 herdr-app do layout.switch '{"name":"main"}'
 ```
 
-Hover a fish for status and location. The details strip follows the hovered agent, then the focused agent, then the first agent. Fish are also Tab stops with visible focus borders, accessible labels, and keyboard activation. Each fish has a generous clickable travel lane so it is easy to catch. Schools wrap and scroll when crowded.
+Hover a fish for status and location. The details strip follows the hovered agent, then the focused agent, then the first agent. Fish expose native Button Tab stops, focus-border styles, accessible labels, and keyboard activation; complete hands-on keyboard acceptance remains tracked in #5. In Free-floating mode each fish's generous click target and label move with it. Organized mode keeps stationary travel lanes; crowded schools wrap and scroll.
 
-**Sub-agents become little fish in their parent's family.** Real `terminals().parent` relationships determine the groups, including nested descendants. Children inherit the main agent's species, with smaller portraits and shorter local swim routes; deeper descendants are smaller again. In immersive mode they cluster beneath the parent; in a wide workspace they cluster alongside it. Each still has its own status, tooltip, Tab stop, and terminal click target. Missing/unmapped parents leave fish independent rather than guessing relationships.
+**Sub-agents become little fish in their parent's family.** Real `terminals().parent` relationships determine the groups, including nested descendants. Children inherit the main agent's species, with smaller portraits; deeper descendants are smaller again. Free-floating families drift as a group, keeping children alongside their parent. Organized families cluster beneath or alongside the parent depending on space. Each still has its own status, tooltip, Tab stop, and terminal click target. Missing/unmapped parents leave fish independent rather than guessing relationships. Families taller than the tank use separate scroll bands; multiple fitting families that each exceed half the tank in both dimensions also get separate bands so their targets cannot remain permanently overlapped. Narrow panes can scroll horizontally, and ordinary Free-floating routes can still cross.
 
-## Swimming
+## Options and motion
 
 All **25 species** from [Polyy.AI's 2D Fish Sprites Pack](https://polyyai.itch.io/2d-fish-sprites-pack) are included. Species are deterministic by full terminal address; species can repeat.
 
-- **Enable / Pause motion:** opt-in; off on a fresh installation. Pausing stops fish, bubbles, surface waves, attention bobbing, and shimmer.
-- **Turning: smooth / instant:** smooth turns use all 30 source rotation angles across a round trip. Instant turns use two opposite views.
-- **Bubbles: on / off:** two original aerator streams rise along the sides. Paused mode uses still posters.
-- **Water: on / off:** a translucent surface ribbon slowly undulates across the top. Paused mode leaves it still.
-- Fish travel back and forth on a 12-second route, with slight vertical movement and species-offset phases. Native animated WebP playback—not per-frame JavaScript, animation timers, or repeated UI reconstruction—drives the motion.
-- Working and idle agents swim when enabled. Blocked fish stop traveling, appear larger/closer to the glass, gently bob in a coral halo, and say **Needs you**. Done fish turn gold and show a brief three-second sparkle when first observed entering done with motion enabled; they stay gold until Herdr marks them seen/idle. The sparkle is native opacity animation, with one timer solely to remove it.
-- Preferences are shared by both modes and saved by Herdr. Motion is opt-in instead of detecting OS reduced-motion settings, which this API does not expose.
+There is no tank heading or toolbar full of settings: just the layout switch and **Options ▾**. The native dropdown uses switches and radio buttons, dismisses on outside press/Escape, and keeps settings together.
+
+- **Animate aquarium:** opt-in; off on a fresh installation. Turning it off stops fish, bubbles, surface waves, attention bobbing, and shimmer.
+- **Fish arrangement — Free-floating / Organized:** free-floating is the default. Families follow nearby deterministic waypoints with gentle course changes instead of a single left/right ping-pong loop. Organized preserves the original fixed lanes and 12-second routes for a more structured view.
+- **Free-floating speed — Slow / Normal:** Slow is the default. Slow travels at up to about 12 px/sec in eight-second legs; Normal uses about 24 px/sec in six-second legs. Bounds can shorten a leg. Course changes are deterministic, without random darting. This setting affects Free-floating, not Organized's baked routes. Click targets move with the fish and stay comfortably larger than the artwork. Paths can cross: choose Organized for dense schools.
+- **Turning — Smooth / Instant:** free-floating fish stop before reversing. Smooth briefly fades out, swaps directional sprites while invisible, then fades in before traveling; Instant swaps while stationary. Facing comes from the actual next waypoint, not a separate image clock. Organized retains source-angle turns.
+- **Bubbles:** two original aerator streams rise along the sides. Paused mode uses still posters.
+- **Surface waves:** a translucent surface ribbon slowly undulates across the top. Seamless fixed-size SVG tiles overscan both ends, so movement never exposes a shrinking image edge. Paused mode leaves it still.
+
+The theme has no JavaScript frame loop: one cancellable view-level timer supplies waypoints and stationary turn phases to native GPUI transitions. This does not make host rendering free of script work; native profiling observes script snapshots alongside layout and paint. See [performance evidence and limits](docs/aquarium-performance.md).
+Working and idle agents move when enabled. Blocked/done family leaders stop the whole family; descendants stay with their parent while retaining their own status cues. Blocked fish appear larger/closer to the glass, gently bob in a coral halo, and say **Needs you**. Done fish turn gold and show a brief three-second sparkle when first observed entering done with motion enabled; they stay gold until Herdr marks them seen/idle. The sparkle is native opacity animation, with one timer solely to remove it.
+Preferences are shared by both modes and saved by Herdr. Motion is opt-in instead of detecting OS reduced-motion settings, which this API does not expose.
 
 Optional command equivalents (when the aquarium is visible):
 
@@ -42,11 +51,15 @@ herdr-app do aquarium.motion
 herdr-app do aquarium.turning
 herdr-app do aquarium.bubbles
 herdr-app do aquarium.water
+herdr-app do aquarium.arrangement
+herdr-app do aquarium.options
 ```
 
 The source sheets are **camera rotations, not fin-flapping animation**. The result is traveling and turning fish, not simulated skeletal swimming. Gold is a lightweight baked PNG effect, not a live material shader. No speed slider, collision physics, or new dependencies in the running app.
 
 ### Telemetry limitation
+
+Live status-reporting background child agents join their verified parent’s fish family even without a pane; clicking a raw-only child opens its native terminal peek in either layout, without assigning a pane or invented workspace scope. Shell/build subprocesses are not added, and surviving or unknown-parent children remain independent without invented workspace scope. Like Herdr’s native child list, raw child `done` displays as resting (not an unseen completion), and `error` as needing you.
 
 The installed Herdr API does **not** document cache, context, model, or thinking telemetry. Cache and thinking show **not reported**. Nothing is inferred from agent status, fabricated, or scraped from terminal output/private session files. A future agent-side reporting integration can extend `mods/aquarium/model.js`.
 
@@ -77,15 +90,19 @@ Then check the mod and select a layout. To update your own installation, copy th
 
 ```sh
 node --test tests/*.test.mjs
-uv run --with pillow python -m unittest discover -s tests
+uv run --with pillow==11.3.0 python -m unittest discover -s tests
 herdr-app check ~/.config/herdr-app/mods/aquarium
 herdr-app status
 herdr-app shot /tmp/aquarium.png
 ```
 
-Node tests cover species/assets, missing telemetry, state-dependent motion, completion-entry detection, parent/descendant grouping (including missing parents and cycles), inherited species, and empty/narrow/crowded geometry. Python checks verify the complete round-trip route, all 30 angles, valid moving WebP clips for all 25 species, and transparent bubble clips/posters. Native rendering and real two-agent playback have been checked in the app; the immersive terminal and return views render without app errors. Full keyboard, empty/crowded UI, and every live status transition still need hands-on acceptance testing. No large-school CPU/GPU/memory benchmark yet; animated images use more decoded memory than their compressed file size. Pause motion for the lightest mode. All four statuses and nested fish families also pass an isolated native render check using test fixtures; actual live blocked/done transitions and agent-spawn lifecycles still need hands-on testing.
+52 Node tests cover discovery/families, stable species and placement, heading versus displacement, geometry, navigation dispatch, native control descriptions, and scheduler cleanup. Eight Python checks cover assets, wave tiling and reproducible gallery pixels. These are not human input acceptance.
 
-The repo's runtime assets total about 14 MB; the original 49 MB pack and build dependencies are not vendored. No runtime subprocesses, network requests, web views, polling, or terminal scraping.
+A [controlled live pass](docs/native-live-validation.md) displayed three genuine pane-less children and the brighter habitat. Native captures cover a five-fish workspace at Normal/Smooth and two real root species at both speeds/turn modes (136 frames at 1 Hz); no sustained backwards-facing mismatch was found on clear sampled legs. That sampling does not establish fade smoothness, frame pacing, hit comfort, keyboard behavior, every species/status, or complete lifecycle acceptance. Raw child navigation was corrected after `agent.focus` failed live: the native terminal-peek endpoint opened the correct worker, while physical Button activation remains untested.
+
+The [native performance report](docs/aquarium-performance.md) includes a synthetic 250-root stress scene: about 101% of one CPU core enabled versus 1.6% paused in sequential matched-scene runs. This is a significant unresolved cost, not a lightweight-performance acceptance claim. Full-app RSS is measured; GPU and decoded-image residency are not. One real child exit was observed after settling. Real blocked/done transitions, broader spawn/nested/parent-exit workflows, and hands-on click/keyboard acceptance remain open.
+
+The repo's runtime assets total about 15 MB; the original 49 MB pack and build dependencies are not vendored. No runtime subprocesses, network requests, web views, theme-managed per-frame callback loop, or terminal scraping.
 
 Regenerate the assets from the source pack ZIP:
 

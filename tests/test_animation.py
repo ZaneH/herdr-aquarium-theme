@@ -37,8 +37,24 @@ class AnimationTests(unittest.TestCase):
             with Image.open(path.with_suffix('.png')) as poster:
                 self.assertEqual(poster.tobytes(), first.tobytes())
 
+    def test_floating_species_have_static_directional_poses_and_matching_gold_alpha(self):
+        assets = ROOT / 'mods/aquarium/assets'
+        files = list(assets.glob('*-left-gold.png'))
+        self.assertEqual(len(files), 25)
+        self.assertEqual(list(assets.glob('*-float-*.webp')), [])
+        for path in files:
+            species = path.name.removesuffix('-left-gold.png')
+            for direction in ('', '-left'):
+                with Image.open(assets / f'{species}{direction}.png') as normal, \
+                        Image.open(assets / f'{species}{direction}-gold.png') as gold:
+                    self.assertEqual(normal.size, (96, 96))
+                    self.assertEqual(gold.size, normal.size)
+                    self.assertEqual(getattr(normal, 'n_frames', 1), 1)
+                    self.assertEqual(normal.getchannel('A').tobytes(), gold.getchannel('A').tobytes())
+                    self.assertIsNotNone(normal.getbbox())
+
     def test_all_twenty_five_species_have_valid_native_animations(self):
-        files = list((ROOT / 'mods/aquarium/assets').glob('*-swim.webp'))
+        files = [p for p in (ROOT / 'mods/aquarium/assets').glob('*-swim.webp') if '-float-' not in p.name]
         self.assertEqual(len(files), 25)
         for path in files:
             for variant in (path, path.with_name(path.name.replace('-swim', '-glide'))):
