@@ -5,12 +5,14 @@ current approved algorithms only: for the 11 tail species a 96 × 96 still, a fi
 head/facing, and vertical column shear capped at two pixels, tapering to zero at a
 measured caudal-fin boundary; for the moray eel a full body-undulation wave (its own
 profile, below); for the four flowing-fin species a fixed torso/head core with a
-bounded 2D fin warp (its own profile, below). Twelve source frames at 100 ms, no new
+bounded 2D fin warp (its own profile, below); for the two sharks a caudal-joint
+rotation about the measured peduncle root (its own profile, below). Twelve source frames at 100 ms, no new
 clock or mask system. The WebP encoder may coalesce identical consecutive source frames
 into longer encoded frames; the decoded 1200 ms timeline must still match the intended
 frame at every 100 ms slot. The tail species' still/gold PNG fallbacks and all Organized
 travelling clips are unchanged; the eel gets matched canonical side fallbacks; the fin
-species reuse their existing norm/gold stills as-is. 16 species are now animated; 9 remain still.
+species reuse their existing norm/gold stills as-is; the sharks reuse theirs too.
+18 species are now animated; 7 remain still.
 
 "Not shipped" means not added in this batch. It does not mean a species cannot be animated.
 The tail-only algorithm cannot separate fins that share the same image columns; future
@@ -99,15 +101,40 @@ portraits already face correctly and are reused unchanged.
 Loops: `manta_ray-fin-{right,left}.webp`. Native in-app visual acceptance stays
 open, like every species.
 
-## Reviewed but not shipped (3)
+## Shipped caudal-joint (2): great_white_shark, hammerhead_shark
 
-These have a discrete caudal fin and were inspected as trial loops. All three showed
-visible defects. Missing source assets are not the blocker.
+The column-shear trial for the sharks was rejected (history below). The accepted
+algorithm instead rotates the whole caudal silhouette as one unit about the
+measured peduncle root: a scalar angle `A·sin(2πi/12)`, locally scaled by a
+smoothstep over the 4-column tailward attachment so the seam to the preserved
+trunk stays continuous, then an inverse rotation with premultiplied bilinear
+sampling inside a small reviewed region only. Frame 0 is the source still; the
+period is 12 with 7 distinct visible states; maximum tail-tissue displacement is
+1.3–1.46 px (<= 2 px bound). There is no source-alpha output gate, so the loop
+honestly gains and loses contour pixels at the lobe edges, and the silhouette
+(both lobes attached at the peduncle) stays one connected component in every
+frame. Roots, amplitudes and regions were measured on each facing's own still;
+both facings already face correctly, so paused/blocked/done fallbacks reuse the
+existing norm/gold PNGs unchanged.
+Loops: `<species>-caudal-{right,left}.webp`. Native in-app visual acceptance stays
+open, like every species.
+
+| species | root R/L | amplitude rad R/L | region R/L (x0–x1, y0–y1) |
+|---|---|---|---|
+| great_white_shark | (23.5, 42.0) / (72.5, 58.5) | 0.062 / 0.085 | 8–27, 22–53 / 69–87, 47–75 |
+| hammerhead_shark | (24.0, 55.5) / (72.0, 54.0) | 0.07 / 0.072 | 3–27, 44–67 / 69–92, 40–64 |
+
+## Rejected column-shear trials (1, historical)
+
+History: the sharks were first tried as column-shear tail loops and rejected
+with visible defects (a rubbery hinge sliding both lobes against the narrow
+peduncle on the great white, and a detached, hooked lower lobe on the
+hammerhead, whose lobes are only a few pixels thick). They have since shipped
+with the caudal-joint rotation above; the rows below are the remaining
+reject of that older algorithm. Missing source assets are not the blocker.
 
 | species | evidence | concrete blocker | what would help |
 |---|---|---|---|
-| great_white_shark | facing R/L 25/80 | heterocercal tail is one large swept unit; shifting it as columns slides both lobes against the narrow peduncle and reads as a rubbery hinge, worst at the long upper lobe. The left still is a different pose, so this is not a mirror artefact. | Authored tail flex about the peduncle joint, or a tail-only layer with a pivot. Edge tuning alone would either cut the lobe or move body columns. |
-| hammerhead_shark | 26/78 | caudal lobes are only a few pixels thick; a two-pixel shift is comparable to lobe thickness, producing a visible step/hook and a detached, rubbery lower lobe. | Redraw the tail with a thicker peduncle and authored flex, or a per-fin rotation rig. A mask over this art is not enough. |
 | silver_arowana | 21/78 | the band boundary crosses the trailing tips of the long dorsal and anal fins. Shear moves those fin tips with the caudal fan, leaving a visible one-to-two-pixel step at the boundary in both facings. | A tail-only mask that excludes the dorsal/anal tips, or art with a clear peduncle. Moving the edge inward would shear more body. |
 
 ## Not shipped: distinct anatomy, no separable caudal fin (6)
@@ -118,7 +145,7 @@ deform that fin or the body silhouette rather than beat a tail. They need specie
 fin motion artwork or a fin mask/rig, not a different edge number. The moray eel
 moved to the shipped body wave above; betta, fancy_goldfish and freshwater_angelfish
 moved to the shipped flowing fins above; manta_ray moved to the shipped wing-flap
-profile above.
+profile above; the sharks moved to the shipped caudal-joint profile above.
 
 | species | concrete reason |
 |---|---|
@@ -133,8 +160,9 @@ profile above.
 
 1. A per-species way to isolate the moving fins (authored transparent fin layers, or a
    reviewed mask) instead of one rectangular column band.
-2. A pivot at the peduncle and rotation/flex, at least for swept shark lobes and long
-   trailing fins, rather than a vertical translation.
+2. A pivot at the peduncle and rotation/flex, at least for long trailing fins,
+   rather than a vertical translation. (Shipped for the two sharks; see the
+   caudal-joint section above.)
 3. New or redrawn stills where the caudal fan does not touch dorsal/anal/pectoral tips.
 4. Re-run the same gates: both facings, 12 source frames at 100 ms with a decoded
    1200 ms timeline that matches every intended slot (encoded frames may coalesce),

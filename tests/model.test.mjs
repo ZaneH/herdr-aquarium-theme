@@ -62,6 +62,28 @@ test('in-place tail pilots loop only when active and never own facing or a trave
   }
 });
 
+test('caudal-joint sharks loop only when active, column shear never returns', () => {
+  for (const species of ['great_white_shark', 'hammerhead_shark']) {
+    for (const face of ['left', 'right']) for (const turning of [true, false]) {
+      for (const status of ['working', 'idle', 'blocked', 'done', 'unknown']) {
+        for (const paused of [true, false]) {
+          const asset = fishAsset({ address: 'child', status }, paused, turning, 'leader', true, face, species);
+          const active = !paused && ['working', 'idle'].includes(status);
+          assert.equal(asset, active ? `${species}-caudal-${face}.webp`
+            : `${species}${face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`);
+          assert.ok(existsSync(new URL(`../mods/aquarium/assets/${asset}`, import.meta.url)));
+        }
+      }
+    }
+    for (const paused of [true, false]) for (const turning of [true, false]) {
+      assert.equal(fishAsset({ address: 'child', status: 'working' }, paused, turning, 'leader', false, 'left', species),
+        paused ? `${species}.png` : `${species}-${turning ? 'swim' : 'glide'}.webp`);
+      assert.equal(fishAsset({ address: 'child', status: 'blocked' }, paused, turning, 'leader', false, 'left', species), `${species}.png`);
+      assert.equal(fishAsset({ address: 'child', status: 'done' }, paused, turning, 'leader', false, 'left', species), `${species}-gold.png`);
+    }
+  }
+});
+
 test('floating families use bounded whole-tank paths and fit children without clipping', () => {
   for (const width of [104, 240, 260, 800, 1600]) {
     for (const height of [178, 300, 800]) {

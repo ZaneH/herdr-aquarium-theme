@@ -84,8 +84,9 @@ test('all species: family poses follow sampled travel regardless of child status
         const species = speciesFor(address);
         const eel = species === 'moray_eel';
         const fin = ['betta', 'fancy_goldfish', 'freshwater_angelfish', 'manta_ray'].includes(species);
-        const animation = eel ? 'body' : fin ? 'fin' : 'tail';
-        const looping = eel || fin
+        const caudal = ['great_white_shark', 'hammerhead_shark'].includes(species);
+        const animation = eel ? 'body' : fin ? 'fin' : caudal ? 'caudal' : 'tail';
+        const looping = eel || fin || caudal
           || ['clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout', 'sockeye_salmon', 'piranha', 'swordfish', 'bluefin_tuna', 'channel_catfish', 'anglerfish'].includes(species);
         const expected = looping && ['working', 'idle'].includes(status)
           ? `${species}-${animation}-${m.face}.webp`

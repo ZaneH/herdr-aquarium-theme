@@ -389,3 +389,122 @@ class FinFlowTests(unittest.TestCase):
         for image, species, facing in cases:
             with self.assertRaises(ValueError):
                 prepare.fin_frames(image, species, facing)
+
+
+CAUDAL_NEW_ASSETS = tuple(f'{s}-caudal-{f}.webp'
+                          for s in ('great_white_shark', 'hammerhead_shark') for f in ('right', 'left'))
+
+
+class CaudalJointTests(unittest.TestCase):
+    """Shark caudal-joint loops: rotate the whole caudal silhouette about the
+    measured peduncle root; the rejected column shear never returns."""
+
+    def _outside_region(self, prof):
+        x0, x1, y0, y1 = prof['region']
+        return [(x, y) for y in range(96) for x in range(96)
+                if not (x0 <= x <= x1 and y0 <= y <= y1)]
+
+    def _forward_halfplane(self, prof):
+        # L tail side preserves x >= preserve_x, R side preserves x <= preserve_x.
+        fix = prof['preserve_x']
+        return [(x, y) for y in range(96) for x in range(96)
+                if (x >= fix if prof['tail_side'] == 'L' else x <= fix)]
+
+    def test_joint_keeps_body_exact_and_moves_only_the_tail(self):
+        for (species, facing), prof in prepare.CAUDAL_PROFILES.items():
+            path = ROOT / f'mods/aquarium/assets/{prof["file"]}'
+            before = path.read_bytes()
+            with Image.open(path) as handle:
+                source = handle.convert('RGBA')
+                sp = source.load()
+                frames = prepare.caudal_frames(source, species, facing)
+                self.assertEqual(len(frames), 12)
+                # Frame 0 is the source still; the field has period 12.
+                self.assertEqual(frames[0].tobytes(), source.tobytes())
+                self.assertEqual(prepare.caudal_frames(source, species, facing, 13)[12], frames[0])
+                # >= 5 genuinely distinct visible states (sine symmetry gives 7).
+                self.assertGreaterEqual(len({frame.tobytes() for frame in frames}), 5)
+                # Displacement bound over actual tail tissue, not background.
+                x0, x1, y0, y1 = prof['region']
+                rmax = max(math.hypot(x - prof['root'][0], y - prof['root'][1])
+                           for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)
+                           if sp[x, y][3] > 16)
+                self.assertLessEqual(prof['amplitude_rad'] * rmax, 2.0)
+                # Head, trunk and every pixel outside the warp region: byte-exact.
+                fixed = set(self._outside_region(prof)) | set(self._forward_halfplane(prof))
+                for frame in frames:
+                    px = frame.load()
+                    for x, y in fixed:
+                        self.assertEqual(px[x, y], sp[x, y])
+                    for perimeter in [(0, 0, 96, 1), (0, 95, 96, 96), (0, 0, 1, 96), (95, 0, 96, 96)]:
+                        self.assertIsNone(frame.getchannel('A').crop(perimeter).getbbox())
+                # Genuine caudal contour: at both extremes the loop gains and
+                # loses pixels against the source silhouette, inside the region only.
+                region = Image.new('L', (96, 96), 0)
+                region.paste(255, (x0, y0, x1 + 1, y1 + 1))
+                src_a = source.getchannel('A').point(lambda a: 255 if a >= 16 else 0)
+                for phase in (3, 9):
+                    out_a = frames[phase].getchannel('A').point(lambda a: 255 if a >= 16 else 0)
+                    gained = Image.composite(out_a, Image.new('L', (96, 96), 0), region)
+                    lost = Image.composite(src_a, Image.new('L', (96, 96), 0), region)
+                    gained_px = [(x, y) for y in range(96) for x in range(96)
+                                 if gained.load()[x, y] and not src_a.load()[x, y]]
+                    lost_px = [(x, y) for y in range(96) for x in range(96)
+                               if lost.load()[x, y] and not out_a.load()[x, y]]
+                    self.assertGreater(len(gained_px), 0)
+                    self.assertGreater(len(lost_px), 0)
+                    # Moved mass stays attached: every gained/lost pixel lies
+                    # within 3 px (MaxFilter 7) of the opposite silhouette.
+                    for support, pixels in ((src_a.filter(ImageFilter.MaxFilter(7)), gained_px),
+                                            (out_a.filter(ImageFilter.MaxFilter(7)), lost_px)):
+                        for x, y in pixels:
+                            self.assertGreaterEqual(support.load()[x, y], 16)
+                # The whole silhouette (both lobes, peduncle attachment) stays
+                # one 4-connected component at the meaningful thresholds.
+                for thresh in (16, 128):
+                    expected = alpha_components(source, thresh)
+                    for frame in frames:
+                        self.assertEqual(alpha_components(frame, thresh), expected)
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_committed_caudal_assets_are_reproducible_and_timelines_match(self):
+        sources = [ROOT / f'mods/aquarium/assets/{p["file"]}' for p in prepare.CAUDAL_PROFILES.values()]
+        hashes = {p: hashlib.sha256(p.read_bytes()).digest() for p in sources}
+        with tempfile.TemporaryDirectory() as temp:
+            prepare.build(temp)
+            for name in CAUDAL_NEW_ASSETS:
+                generated = Path(temp) / name
+                committed = ROOT / 'mods/aquarium/assets' / name
+                self.assertEqual(generated.read_bytes(), committed.read_bytes(), name)
+                species, _, facing = name[:-5].partition('-caudal-')
+                prof = prepare.CAUDAL_PROFILES[(species, facing)]
+                with Image.open(ROOT / f'mods/aquarium/assets/{prof["file"]}') as src_handle:
+                    source = src_handle.convert('RGBA')
+                    intended = prepare.caudal_frames(source, species, facing)
+                durations = frame_durations(generated)
+                with Image.open(generated) as clip:
+                    self.assertTrue(clip.is_animated)
+                    self.assertEqual(clip.size, (96, 96))
+                    self.assertEqual(clip.info['loop'], 0)
+                    # The encoder may coalesce identical consecutive frames; the
+                    # decoded 12 x 100 ms timeline must match every intended slot.
+                    self.assertEqual(sum(durations), 1200)
+                    self.assertTrue(all(d > 0 and d % 100 == 0 for d in durations))
+                    slot = 0
+                    for i, duration in enumerate(durations):
+                        clip.seek(i)
+                        frame = clip.convert('RGBA')
+                        for _ in range(duration // 100):
+                            self.assertTrue(composited_equal(frame, intended[slot]),
+                                            f'{species} {facing} slot {slot}')
+                            slot += 1
+                    self.assertEqual(slot, 12)
+        self.assertEqual(hashes, {p: hashlib.sha256(p.read_bytes()).digest() for p in sources})
+
+    def test_invalid_caudal_dimensions_species_and_facing_are_rejected(self):
+        cases = [(Image.new('RGBA', (10, 10)), 'great_white_shark', 'right'),
+                 (Image.new('RGBA', (96, 96)), 'great_white_shark', 'up'),
+                 (Image.new('RGBA', (96, 96)), 'silver_arowana', 'right')]
+        for image, species, facing in cases:
+            with self.assertRaises(ValueError):
+                prepare.caudal_frames(image, species, facing)

@@ -133,6 +133,10 @@ const IN_PLACE_TAIL = new Set(["clownfish", "blue_tang", "koi", "largemouth_bass
 // and gold PNG poses already face correctly on both sides, so they are reused
 // as-is for paused/blocked/done fallbacks.
 const IN_PLACE_FIN = new Set(["betta", "fancy_goldfish", "freshwater_angelfish", "manta_ray"]);
+// Caudal-joint loops: sharks rotate their whole caudal silhouette about the
+// measured peduncle root. The still and gold PNG poses already face correctly
+// on both sides, so they are reused as-is for paused/blocked/done fallbacks.
+const IN_PLACE_CAUDAL = new Set(["great_white_shark", "hammerhead_shark"]);
 
 export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, facing = "right", choice = null) {
   const species = savedSpecies(choice) || speciesFor(speciesAddress);
@@ -142,7 +146,7 @@ export function fishAsset(agent, paused, turning, speciesAddress = agent.address
     // canonical side art, so its stills use the -inplace stem, never the old
     // plain (left-facing) pose.
     const animation = species === "moray_eel" ? "body" : IN_PLACE_TAIL.has(species) ? "tail"
-      : IN_PLACE_FIN.has(species) ? "fin" : null;
+      : IN_PLACE_FIN.has(species) ? "fin" : IN_PLACE_CAUDAL.has(species) ? "caudal" : null;
     if (animation && !paused && (agent.status === "working" || agent.status === "idle")) {
       return `${species}-${animation}-${facing === "left" ? "left" : "right"}.webp`;
     }

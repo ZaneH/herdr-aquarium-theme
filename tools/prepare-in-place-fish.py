@@ -67,6 +67,91 @@ def tail_frames(source, facing, species='clownfish'):
     return frames
 
 
+# Joint rotation keeps both shark caudal lobes coherent where column shear tore them.
+# Each facing has its own root and four-column blend into the stationary trunk.
+CAUDAL_PROFILES = {
+    ('great_white_shark', 'right'): dict(
+        file='great_white_shark.png', tail_side='L', root=(23.5, 42.0),
+        preserve_x=25, full_x=21, amplitude_rad=0.062, region=(8, 27, 22, 53)),
+    ('great_white_shark', 'left'): dict(
+        file='great_white_shark-left.png', tail_side='R', root=(72.5, 58.5),
+        preserve_x=71, full_x=75, amplitude_rad=0.085, region=(69, 87, 47, 75)),
+    ('hammerhead_shark', 'right'): dict(
+        file='hammerhead_shark.png', tail_side='L', root=(24.0, 55.5),
+        preserve_x=25, full_x=21, amplitude_rad=0.07, region=(3, 27, 44, 67)),
+    ('hammerhead_shark', 'left'): dict(
+        file='hammerhead_shark-left.png', tail_side='R', root=(72.0, 54.0),
+        preserve_x=71, full_x=75, amplitude_rad=0.072, region=(69, 92, 40, 64)),
+}
+
+
+def caudal_frames(source, species, facing, count=FRAME_COUNT):
+    """Inverse-rotate the caudal silhouette about the peduncle root.
+
+    Scalar angle = amplitude*sin(2*pi*i/12); the local angle is that times a
+    smoothstep over the 4-column tailward attachment, zero at the trunk. The
+    warp region is the only resampled area; outside it, and on zero-weight
+    columns inside it, pixels are byte copies (frame starts as a copy of the
+    source). Premultiplied bilinear over the 4 neighbours keeps anti-aliased
+    edges halo-free; no source-alpha output gate, so contours gain and lose
+    honestly. Frame 0 is the source still.
+    """
+    key = (species, facing)
+    if source.size != (SIZE, SIZE) or key not in CAUDAL_PROFILES:
+        raise ValueError('Expected a known shark, a 96x96 portrait and right/left facing')
+    prof = CAUDAL_PROFILES[key]
+    source = source.convert('RGBA')
+    sp = source.load()
+    x0, x1, y0, y1 = prof['region']
+    rx, ry = prof['root']
+    x_fix, x_full = prof['preserve_x'], prof['full_x']
+    span = (x_fix - x_full) if prof['tail_side'] == 'L' else (x_full - x_fix)
+    frames = []
+    for i in range(count):
+        theta = prof['amplitude_rad'] * math.sin(math.tau * i / FRAME_COUNT)
+        frame = source.copy()
+        po = frame.load()
+        for qy in range(y0, y1 + 1):
+            for qx in range(x0, x1 + 1):
+                dist = (x_fix - qx) if prof['tail_side'] == 'L' else (qx - x_fix)
+                wgt = _smoothstep(dist / span) if dist > 0 else 0.0
+                if wgt == 0.0:
+                    continue  # byte-exact preserved trunk
+                th = wgt * theta
+                dx, dy = qx - rx, qy - ry
+                # inverse rotation: source position = R(-th) (q - root) + root
+                sx = rx + math.cos(-th) * dx - math.sin(-th) * dy
+                sy = ry + math.sin(-th) * dx + math.cos(-th) * dy
+                if sx < 0 or sy < 0 or sx > SIZE - 1 or sy > SIZE - 1:
+                    po[qx, qy] = (0, 0, 0, 0)
+                    continue
+                xi, yi = int(math.floor(sx)), int(math.floor(sy))
+                fx, fy = sx - xi, sy - yi
+                # premultiplied bilinear, same operation order as the reviewed
+                # prototype: pm = rgb*(alpha/255), unpremultiply *255/alpha
+                c0 = c1 = c2 = aa = 0.0
+                for jj, wy in ((0, 1.0 - fy), (1, fy)):
+                    for ii, wx in ((0, 1.0 - fx), (1, fx)):
+                        wt = wx * wy
+                        if wt == 0:
+                            continue
+                        r, g, b, a = sp[xi + ii, yi + jj]
+                        f = a / 255.0
+                        c0 += r * f * wt
+                        c1 += g * f * wt
+                        c2 += b * f * wt
+                        aa += a * wt
+                if aa < 0.5:
+                    po[qx, qy] = (0, 0, 0, 0)
+                else:
+                    po[qx, qy] = (int(max(0, min(255, round(c0 * 255.0 / aa)))),
+                                  int(max(0, min(255, round(c1 * 255.0 / aa)))),
+                                  int(max(0, min(255, round(c2 * 255.0 / aa)))),
+                                  int(round(aa)))
+        frames.append(frame)
+    return frames
+
+
 # Approved moray-eel body wave. The plain moray_eel.png also faces left but is
 # a different pose; the canonical SIDE still moray_eel-left.png is the only
 # source. The right-facing loop is a mirror of the left frames, so a mirrored
@@ -317,6 +402,12 @@ def build(output):
         with Image.open(ASSETS / prof['file']) as source:
             frames = fin_frames(source, species, facing)
         frames[0].save(output / f'{species}-fin-{facing}.webp',
+                       save_all=True, append_images=frames[1:], duration=FRAME_MS,
+                       loop=0, lossless=True, exact=True, method=6)
+    for (species, facing), prof in CAUDAL_PROFILES.items():
+        with Image.open(ASSETS / prof['file']) as source:
+            frames = caudal_frames(source, species, facing)
+        frames[0].save(output / f'{species}-caudal-{facing}.webp',
                        save_all=True, append_images=frames[1:], duration=FRAME_MS,
                        loop=0, lossless=True, exact=True, method=6)
     rows = [(species, facing) for species in TAIL_EDGE for facing in ('right', 'left')]
