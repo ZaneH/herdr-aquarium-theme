@@ -412,3 +412,39 @@ The active-window benchmark cases are unchanged by design (they legitimately
 retain both facings), so no render/median movement there is expected or claimed.
 This is a description-count change in parked frames only; it is not a native
 CPU, FPS, GPU or memory benefit claim.
+
+## Actual native ordinary-school feed comparison: food + halo versus no food (2026-11-12)
+
+Repository revision `1aca9ef55bc0b3f4a728f8b5cb05cce90e435595`, clean. Same
+bounded protocol as the ordinary-school evidence above, via
+`tools/prepare-native-fixture.mjs` (`--count 2|5|10`, `--food` for the
+autoplay pellet, no `--paused`), one recorded window per condition on
+GUI host Herdr PID 80325 (`dev.herdr.app`, unchanged start identity,
+Herdr frontmost at every 1 Hz sample). Food autoplay drops one pellet 250 ms
+after mod init (10 s expiry); a pre-window screenshot proved the pellet
+visible before each official window and a post-window screenshot proved it
+still present after (window ended ~6.1 s after the drop, inside the 10 s
+expiry). Banner OCR per condition confirmed `FOOD AUTOPLAY ON` / `FOOD OFF`.
+A preliminary pellet-detector check aborted before any official sampling: its
+12×12 solid-core requirement was too large for the bordered pellet. After
+correcting that detector, six official windows were recorded; no failed timing
+window was discarded. Official windows: 5.035–5.054 s at 1 Hz cumulative CPU +
+RSS, after approximately 1 s warmup. The cost includes the
+pellet, its feedback ripple and any fish goal state it primes.
+
+| Condition | CPU s / ~5 s | % of one logical CPU | RSS mean (MiB) |
+|---|---:|---:|---:|
+| 2 food | 1.27 | 25.22 | 220.03 |
+| 2 no food | 1.21 | 23.99 | 221.39 |
+| 5 food | 1.39 | 27.51 | 221.95 |
+| 5 no food | 1.45 | 28.69 | 222.42 |
+| 10 food | 1.65 | 32.70 | 219.22 |
+| 10 no food | 1.63 | 32.28 | 222.10 |
+
+Food-minus-no-food differences were +1.24, −1.18 and +0.42 **percentage
+points** of one logical CPU for 2, 5 and 10 roots respectively. One short run
+per condition, always food before no food, cannot separate an effect cost from
+run/order variability or establish a noise bound. This is not evidence of zero
+cost or a speedup; no GPU, FPS or decoded-image-residency claim follows. Raw
+per-sample JSON, manifests, per-condition hash chains and screenshots are
+local-only under `.git/aquarium-reports/feed-native/2026-11-12T06-56-28Z/`.
