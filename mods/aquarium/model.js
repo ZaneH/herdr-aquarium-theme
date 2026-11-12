@@ -129,6 +129,10 @@ export function speciesName(species) {
 // Reviewed in-place loops: conventional side views whose caudal fin is
 // separate from the body. Expand only after per-species anatomy/facing review.
 const IN_PLACE_TAIL = new Set(["clownfish", "blue_tang", "koi", "largemouth_bass", "rainbow_trout", "sockeye_salmon", "piranha", "swordfish", "bluefin_tuna", "channel_catfish", "anglerfish"]);
+// Flowing-fin loops: fixed torso/head core, fins warped in place. The still
+// and gold PNG poses already face correctly on both sides, so they are reused
+// as-is for paused/blocked/done fallbacks.
+const IN_PLACE_FIN = new Set(["betta", "fancy_goldfish", "freshwater_angelfish"]);
 
 export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, facing = "right", choice = null) {
   const species = savedSpecies(choice) || speciesFor(speciesAddress);
@@ -137,7 +141,8 @@ export function fishAsset(agent, paused, turning, speciesAddress = agent.address
     // The eel deforms its whole body (no caudal fin) and comes from mirrored
     // canonical side art, so its stills use the -inplace stem, never the old
     // plain (left-facing) pose.
-    const animation = species === "moray_eel" ? "body" : IN_PLACE_TAIL.has(species) ? "tail" : null;
+    const animation = species === "moray_eel" ? "body" : IN_PLACE_TAIL.has(species) ? "tail"
+      : IN_PLACE_FIN.has(species) ? "fin" : null;
     if (animation && !paused && (agent.status === "working" || agent.status === "idle")) {
       return `${species}-${animation}-${facing === "left" ? "left" : "right"}.webp`;
     }

@@ -6,7 +6,7 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('in_place', ROOT / 'tools/prepare-in-place-fish.py')
@@ -267,3 +267,104 @@ class EelBodyWaveTests(unittest.TestCase):
             self.assertEqual(gold.getchannel('A').tobytes(), normal.getchannel('A').tobytes())
             for thresh in (16, 128):
                 self.assertEqual(alpha_components(gold, thresh), alpha_components(normal, thresh))
+
+
+FIN_SPECIES = ('betta', 'fancy_goldfish', 'freshwater_angelfish')
+FIN_NEW_ASSETS = tuple(f'{s}-fin-{f}.webp' for s in FIN_SPECIES for f in ('right', 'left'))
+
+
+class FinFlowTests(unittest.TestCase):
+    """Flowing fins: fixed torso/head core, bounded 2D warp, honest AA limits.
+
+    Fine fin-thread connectivity is known to vary with antialiasing and is
+    NOT preserved; the tests below check the cheaper dilation support instead.
+    """
+
+    def _core_pixels(self, prof):
+        return [(x, y) for y in range(96) for x in range(96)
+                if prepare.fin_influence(x, y, prof) <= 0]
+
+    def test_fixed_core_bounded_displacement_and_unique_poses(self):
+        for (species, facing), prof in prepare.FIN_PROFILES.items():
+            path = ROOT / f'mods/aquarium/assets/{prof["file"]}'
+            before = path.read_bytes()
+            with Image.open(path) as handle:
+                source = handle.convert('RGBA')
+                frames = prepare.fin_frames(source, species, facing)
+                self.assertEqual(len(frames), 12)
+                # The warp repeats every 12 slots.
+                self.assertEqual(prepare.fin_frames(source, species, facing, 13)[12], frames[0])
+                # Displacement is bounded: weight * amp * |motion vector| <= 2 px.
+                motion = prof['motion'](prof)
+                for y in range(96):
+                    for x in range(96):
+                        d = prepare.fin_influence(x, y, prof)
+                        w = prepare._smoothstep(d / prof['ramp']) if d > 0 else 0.0
+                        ax, ay, _ = motion(x, y)
+                        self.assertLessEqual(w * prof['amp'] * math.hypot(ax, ay), 2.0 + 1e-9)
+                # The protected torso/head union stays RGBA byte-exact.
+                core = self._core_pixels(prof)
+                self.assertGreater(len(core), 500)
+                sp = source.load()
+                for frame in frames:
+                    px = frame.load()
+                    for x, y in core:
+                        self.assertEqual(px[x, y], sp[x, y])
+                    for perimeter in [(0, 0, 96, 1), (0, 95, 96, 96), (0, 0, 1, 96), (95, 0, 96, 96)]:
+                        self.assertIsNone(frame.getchannel('A').crop(perimeter).getbbox())
+                # The fins really flow: >= 8 visible states, frame 0 != still.
+                self.assertGreaterEqual(len({frame.tobytes() for frame in frames}), 8)
+                self.assertNotEqual(frames[0].tobytes(), source.tobytes())
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_committed_fin_assets_are_reproducible_and_appendages_survive(self):
+        sources = [ROOT / f'mods/aquarium/assets/{p["file"]}' for p in prepare.FIN_PROFILES.values()]
+        hashes = {p: hashlib.sha256(p.read_bytes()).digest() for p in sources}
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / 'new' / 'frames'
+            prepare.build(output)
+            for name in FIN_NEW_ASSETS:
+                generated = output / name
+                committed = ROOT / 'mods/aquarium/assets' / name
+                self.assertEqual(generated.read_bytes(), committed.read_bytes(), name)
+                species, _, facing = name[:-5].partition('-fin-')
+                prof = prepare.FIN_PROFILES[(species, facing)]
+                with Image.open(ROOT / f'mods/aquarium/assets/{prof["file"]}') as src_handle:
+                    source = src_handle.convert('RGBA')
+                    intended = prepare.fin_frames(source, species, facing)
+                durations = frame_durations(generated)
+                with Image.open(generated) as clip:
+                    self.assertTrue(clip.is_animated)
+                    self.assertEqual(clip.size, (96, 96))
+                    self.assertEqual(clip.info['loop'], 0)
+                    # The encoder may coalesce identical consecutive frames; the
+                    # decoded 12 x 100 ms timeline must match every intended slot.
+                    self.assertEqual(sum(durations), 1200)
+                    self.assertTrue(all(d > 0 and d % 100 == 0 for d in durations))
+                    # Cheap dilation support: every opaque source appendage pixel
+                    # is still represented (alpha >= 16) within 3 px after warp.
+                    sp = source.getchannel('A')
+                    slot = 0
+                    for i, duration in enumerate(durations):
+                        clip.seek(i)
+                        frame = clip.convert('RGBA')
+                        dilated = frame.getchannel('A').point(lambda a: 255 if a >= 16 else 0) \
+                            .filter(ImageFilter.MaxFilter(7))
+                        for _ in range(duration // 100):
+                            self.assertTrue(composited_equal(frame, intended[slot]),
+                                            f'{species} {facing} slot {slot}')
+                            slot += 1
+                        for y in range(96):
+                            for x in range(96):
+                                if sp.load()[x, y] >= 128:
+                                    self.assertGreaterEqual(dilated.load()[x, y], 16)
+                    self.assertEqual(slot, 12)
+        self.assertEqual(hashes, {p: hashlib.sha256(p.read_bytes()).digest() for p in sources})
+
+    def test_invalid_fin_dimensions_facing_and_species_are_rejected(self):
+        cases = [(Image.new('RGBA', (10, 10)), 'betta', 'right'),
+                 (Image.new('RGBA', (96, 96)), 'betta', 'up'),
+                 (Image.new('RGBA', (96, 96)), 'seahorse', 'right')]
+        for image, species, facing in cases:
+            with self.assertRaises(ValueError):
+                prepare.fin_frames(image, species, facing)

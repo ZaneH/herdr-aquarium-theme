@@ -545,10 +545,10 @@ test('picker preview follows the choice with honest motion labels and full gatin
   leader.status = 'working';
 
   // A still-only species stays honest even with motion on.
-  const still = preview(new Map([...moving, [key, 'betta']]));
-  assert.ok(still.asset.endsWith('/betta.png'), still.asset);
+  const still = preview(new Map([...moving, [key, 'manta_ray']]));
+  assert.ok(still.asset.endsWith('/manta_ray.png'), still.asset);
   assert.equal(still.note, 'Still portrait');
-  assert.equal(still.name, 'Betta');
+  assert.equal(still.name, 'Manta Ray');
 
   // Automatic resolves through the family leader's address, not the opener's.
   const automatic = preview(new Map(moving));
@@ -587,7 +587,7 @@ test('picker preview follows the choice with honest motion labels and full gatin
   assert.equal(closedNodes.get('aquarium-fish-species').childNodes.length, 0);
 
   // Selecting a radio updates the preview on the next render, not only the tank.
-  const fresh = preview(new Map([...moving, [key, 'betta']]));
+  const fresh = preview(new Map([...moving, [key, 'manta_ray']]));
   fresh.nodes.get('aquarium-fish-choice-clownfish').values.on_change(true);
   const after = fresh.f.render();
   assert.equal(after.get('aquarium-fish-preview-art').values.asset, 'mods/aquarium/assets/clownfish-tail-right.webp');

@@ -127,6 +127,25 @@ test('moray eel: floating body wave from mirrored canonical side art, stills mat
   }
 });
 
+test('flowing-fin species loop from their own stills, fallbacks reuse norm/gold poses', () => {
+  for (const species of ['betta', 'fancy_goldfish', 'freshwater_angelfish']) {
+    for (const face of ['left', 'right']) for (const turning of [true, false]) {
+      for (const status of ['working', 'idle', 'blocked', 'done', 'unknown']) for (const paused of [true, false]) {
+        const asset = fishAsset({ address: 'child', status }, paused, turning, 'leader', true, face, species);
+        const active = !paused && ['working', 'idle'].includes(status);
+        assert.equal(asset, active ? `${species}-fin-${face}.webp`
+          : `${species}${face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`);
+        assert.ok(existsSync(new URL(`../mods/aquarium/assets/${asset}`, import.meta.url)));
+      }
+    }
+    // Organized travelling clips are untouched for the fin species too.
+    for (const turning of [true, false]) for (const paused of [true, false]) {
+      assert.equal(fishAsset({ address: 'child', status: 'working' }, paused, turning, 'leader', false, 'left', species),
+        paused ? `${species}.png` : `${species}-${turning ? 'swim' : 'glide'}.webp`);
+    }
+  }
+});
+
 test('missing parents and cyclic parent records never invent a family or lose fish', () => {
   const school = ['t1', 't2', 'remote/t1'].map(address => ({ address }));
   for (const terminals of [[], [{ address: 't1', parent: 'missing/t1' }], [

@@ -156,9 +156,135 @@ def build_eel(output):
     sheet.save(output / 'contact-sheet-eel.png')
 
 
+# Approved flowing-fin species (betta, fancy_goldfish, freshwater_angelfish):
+# the torso ellipse + head disc stay byte-exact; outside that core a small
+# 2D inverse warp with a per-species motion field and premultiplied bilinear
+# sampling makes the fins flow. Still/gold fallbacks reuse the existing norm
+# and gold PNG poses as-is (both facings already face correctly).
+def _betta_motion(prof):
+    tx = prof['torso'][0]
+    def motion(x, y):
+        return 0.3, 0.93, math.tau * prof['s'] * (x - tx) / 18.0
+    return motion
+
+
+def _goldfish_motion(prof):
+    tx = prof['torso'][0]
+    def motion(x, y):
+        return 0.25, 1.0, math.tau * prof['s'] * (x - tx) / 20.0
+    return motion
+
+
+def _angelfish_motion(prof):
+    tx, ty, rx, ry = prof['torso']
+    def motion(x, y):
+        u, v = (x - tx) / rx, (y - ty) / ry
+        if abs(v) > abs(u):
+            # dorsal/anal triangles + ventral streamers: horizontal flapping
+            return 0.99, 0.12, math.tau * (y - ty) / 22.0
+        # caudal fan/streamers behind the disc: vertical wag, wave travels tailward
+        return 0.14, 0.99, math.tau * prof['s'] * (x - tx) / 16.0
+    return motion
+
+
+# Reviewed torso/head bounds keep scales, faces and fin roots fixed.
+# s = +1 for right-facing (tail at low x), -1 for left-facing (tail at high x).
+FIN_PROFILES = {
+    ('betta', 'right'): dict(
+        file='betta.png', torso=(61, 44, 24, 11), head=(78, 43, 12),
+        s=1.0, amp=2.0, ramp=2.75, motion=_betta_motion),
+    ('betta', 'left'): dict(
+        file='betta-left.png', torso=(35, 44, 24, 11), head=(18, 43, 12),
+        s=-1.0, amp=2.0, ramp=2.75, motion=_betta_motion),
+    ('fancy_goldfish', 'right'): dict(
+        file='fancy_goldfish.png', torso=(60, 50, 22, 17), head=(78, 48, 13),
+        s=1.0, amp=1.8, ramp=2.75, motion=_goldfish_motion),
+    ('fancy_goldfish', 'left'): dict(
+        file='fancy_goldfish-left.png', torso=(40, 50, 22, 17), head=(18, 48, 13),
+        s=-1.0, amp=1.8, ramp=2.75, motion=_goldfish_motion),
+    ('freshwater_angelfish', 'right'): dict(
+        file='freshwater_angelfish.png', torso=(50, 46, 20, 17), head=(70, 44, 11),
+        s=1.0, amp=2.0, ramp=2.75, motion=_angelfish_motion),
+    ('freshwater_angelfish', 'left'): dict(
+        file='freshwater_angelfish-left.png', torso=(46, 46, 20, 17), head=(26, 44, 11),
+        s=-1.0, amp=2.0, ramp=2.75, motion=_angelfish_motion),
+}
+
+
+def fin_influence(x, y, prof):
+    """Empirical head/torso falloff, not a physical distance.
+    Nonpositive values protect the core; head falloff keeps the face quiet."""
+    tx, ty, rx, ry = prof['torso']
+    hx, hy, hr = prof['head']
+    torso_gap = (math.sqrt((x - tx) ** 2 / rx ** 2 + (y - ty) ** 2 / ry ** 2) - 1.0) * min(rx, ry)
+    head_gap = math.hypot(x - hx, y - hy) / hr - 1.0
+    return min(torso_gap, head_gap)
+
+
+def fin_frames(source, species, facing, count=FRAME_COUNT):
+    """Inverse warp: out(x,y) = source(x - dx, y - dy); identity (byte copy)
+    inside the protected core; premultiplied bilinear outside. The travelling
+    fin wave is never all-zero, so frame 0 is not the source still (documented
+    eel-approved deviation). Max displacement is capped at 2 px."""
+    key = (species, facing)
+    if source.size != (SIZE, SIZE) or key not in FIN_PROFILES:
+        raise ValueError('Expected a known fin species, a 96x96 portrait and right/left facing')
+    prof = FIN_PROFILES[key]
+    source = source.convert('RGBA')
+    px = source.load()
+    motion = prof['motion'](prof)
+    amp, ramp = prof['amp'], prof['ramp']
+    fields = []
+    for y in range(SIZE):
+        for x in range(SIZE):
+            d = fin_influence(x, y, prof)
+            w = _smoothstep(d / ramp) if d > 0 else 0.0
+            ax, ay, ph = motion(x, y)
+            vec = math.hypot(ax, ay)
+            assert amp * vec <= 2.0 + 1e-9, (amp, ax, ay)
+            fields.append((w, ax * amp, ay * amp, ph))
+    frames = []
+    for i in range(count):
+        theta = math.tau * i / FRAME_COUNT
+        frame = Image.new('RGBA', (SIZE, SIZE))
+        po = frame.load()
+        k = 0
+        for y in range(SIZE):
+            for x in range(SIZE):
+                w, ax, ay, ph = fields[k]; k += 1
+                if w == 0.0:
+                    po[x, y] = px[x, y]
+                    continue
+                s = w * math.sin(theta - ph)
+                sx, sy = x - ax * s, y - ay * s
+                sx = min(max(sx, 0.0), SIZE - 1.0001)
+                sy = min(max(sy, 0.0), SIZE - 1.0001)
+                x0, y0 = int(sx), int(sy)
+                fx, fy = sx - x0, sy - y0
+                x1, y1 = min(x0 + 1, SIZE - 1), min(y0 + 1, SIZE - 1)
+                # premultiplied bilinear over 4 neighbours (no alpha halo)
+                tr = [px[x0, y0], px[x1, y0], px[x0, y1], px[x1, y1]]
+                prem = [(c[0] * c[3], c[1] * c[3], c[2] * c[3], c[3]) for c in tr]
+                wts = ((1 - fx) * (1 - fy), fx * (1 - fy), (1 - fx) * fy, fx * fy)
+                a = sum(p[3] * wt for p, wt in zip(prem, wts))
+                ai = int(round(a))
+                po[x, y] = (0, 0, 0, 0) if ai == 0 else (
+                    int(round(sum(p[0] * wt for p, wt in zip(prem, wts)) / a)),
+                    int(round(sum(p[1] * wt for p, wt in zip(prem, wts)) / a)),
+                    int(round(sum(p[2] * wt for p, wt in zip(prem, wts)) / a)), ai)
+        frames.append(frame)
+    return frames
+
+
 def build(output):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
+    for (species, facing), prof in FIN_PROFILES.items():
+        with Image.open(ASSETS / prof['file']) as source:
+            frames = fin_frames(source, species, facing)
+        frames[0].save(output / f'{species}-fin-{facing}.webp',
+                       save_all=True, append_images=frames[1:], duration=FRAME_MS,
+                       loop=0, lossless=True, exact=True, method=6)
     rows = [(species, facing) for species in TAIL_EDGE for facing in ('right', 'left')]
     sheet = Image.new('RGBA', (SIZE * FRAME_COUNT, (SIZE + 20) * len(rows)))
     draw = ImageDraw.Draw(sheet)

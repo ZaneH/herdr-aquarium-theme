@@ -83,8 +83,12 @@ test('all species: family poses follow sampled travel regardless of child status
         const asset = fishAsset({ address: 'unrelated-child', status }, false, true, address, true, m.face);
         const species = speciesFor(address);
         const eel = species === 'moray_eel';
-        const expected = (eel || ['clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout', 'sockeye_salmon', 'piranha', 'swordfish', 'bluefin_tuna', 'channel_catfish', 'anglerfish'].includes(species)) && ['working', 'idle'].includes(status)
-          ? `${species}-${eel ? 'body' : 'tail'}-${m.face}.webp`
+        const fin = ['betta', 'fancy_goldfish', 'freshwater_angelfish'].includes(species);
+        const animation = eel ? 'body' : fin ? 'fin' : 'tail';
+        const looping = eel || fin
+          || ['clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout', 'sockeye_salmon', 'piranha', 'swordfish', 'bluefin_tuna', 'channel_catfish', 'anglerfish'].includes(species);
+        const expected = looping && ['working', 'idle'].includes(status)
+          ? `${species}-${animation}-${m.face}.webp`
           : eel ? `${species}-inplace-${status === 'done' ? `gold-${m.face}` : m.face}.png`
           : `${species}${m.face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`;
         assert.equal(asset, expected);

@@ -4,11 +4,13 @@ This is the per-species record for the Free-floating in-place loops. It covers t
 current approved algorithms only: for the 11 tail species a 96 × 96 still, a fixed
 head/facing, and vertical column shear capped at two pixels, tapering to zero at a
 measured caudal-fin boundary; for the moray eel a full body-undulation wave (its own
-profile, below). Twelve source frames at 100 ms, no new clock or mask system. The WebP
-encoder may coalesce identical consecutive source frames into longer encoded frames; the
-decoded 1200 ms timeline must still match the intended frame at every 100 ms slot. The
-tail species' still/gold PNG fallbacks and all Organized travelling clips are unchanged;
-the eel gets matched canonical side fallbacks. 12 species are now animated; 13 remain still.
+profile, below); for the three flowing-fin species a fixed torso/head core with a
+bounded 2D fin warp (its own profile, below). Twelve source frames at 100 ms, no new
+clock or mask system. The WebP encoder may coalesce identical consecutive source frames
+into longer encoded frames; the decoded 1200 ms timeline must still match the intended
+frame at every 100 ms slot. The tail species' still/gold PNG fallbacks and all Organized
+travelling clips are unchanged; the eel gets matched canonical side fallbacks; the fin
+species reuse their existing norm/gold stills as-is. 15 species are now animated; 10 remain still.
 
 "Not shipped" means not added in this batch. It does not mean a species cannot be animated.
 The tail-only algorithm cannot separate fins that share the same image columns; future
@@ -60,6 +62,29 @@ jumps between unrelated poses.
 Loops: `moray_eel-body-{left,right}.webp`. Native in-app visual acceptance stays open,
 like every species.
 
+## Shipped flowing fins (3): betta, fancy_goldfish, freshwater_angelfish
+
+These species have no separable caudal band — the caudal, dorsal and anal fins form
+one continuous veil — so column shear cannot work. Instead each facing uses its own
+measured profile: a torso ellipse plus a head disc form a protected core that is
+RGBA byte-exact in every frame; outside it an empirical falloff weight
+(`smoothstep(min(torso gap, head gap)/ramp)`, not a claimed physical distance) ramps a
+per-species motion field up to a 2 px displacement, applied as an inverse warp with
+premultiplied bilinear sampling. Betta and fancy goldfish flow their fans diagonally;
+the angelfish flaps its dorsal/anal fins mostly horizontally while its caudal fan
+wags vertically. Because the wave is a travelling sine, frame 0 is not the source
+still — the same approved deviation as the eel.
+
+Known limit: the small premultiplied resampling softens antialiased fin edges, and
+thin one-pixel fin threads can break or merge across the 12 frames — fine-thread
+connected-component counts are **not** preserved and this is stated rather than
+hidden. The tests instead check the cheaper guarantee that every opaque source
+appendage pixel is still represented (alpha ≥ 16) within a 3 px neighborhood in
+every frame. No spine rig, full 3D rotation or native in-app proof is claimed.
+Paused/blocked/done fish fall back to the existing norm/gold stills, which already
+face correctly on both sides, so no canonical still copies were needed.
+Loops: `<species>-fin-{right,left}.webp`.
+
 ## Reviewed but not shipped (3)
 
 These have a discrete caudal fin and were inspected as trial loops. All three showed
@@ -71,20 +96,18 @@ visible defects. Missing source assets are not the blocker.
 | hammerhead_shark | 26/78 | caudal lobes are only a few pixels thick; a two-pixel shift is comparable to lobe thickness, producing a visible step/hook and a detached, rubbery lower lobe. | Redraw the tail with a thicker peduncle and authored flex, or a per-fin rotation rig. A mask over this art is not enough. |
 | silver_arowana | 21/78 | the band boundary crosses the trailing tips of the long dorsal and anal fins. Shear moves those fin tips with the caudal fan, leaving a visible one-to-two-pixel step at the boundary in both facings. | A tail-only mask that excludes the dorsal/anal tips, or art with a clear peduncle. Moving the edge inward would shear more body. |
 
-## Not shipped: distinct anatomy, no separable caudal fin (10)
+## Not shipped: distinct anatomy, no separable caudal fin (7)
 
 These fail the tail algorithm's first assumption: there is no discrete caudal fin, or a different
 fin (pectoral, dorsal, anal, fringe) occupies the same columns. Shearing the band would
 deform that fin or the body silhouette rather than beat a tail. They need species-specific
 fin motion artwork or a fin mask/rig, not a different edge number. The moray eel
-moved to the shipped body wave above.
+moved to the shipped body wave above; betta, fancy_goldfish and freshwater_angelfish
+moved to the shipped flowing fins above.
 
 | species | concrete reason |
 |---|---|
-| betta | caudal, dorsal and anal fins form one continuous mass; there is no peduncle |
-| fancy_goldfish | translucent veil tail overlaps the pelvic/anal fins and body; no separable band |
 | mandarinfish | huge pectoral fan occupies the tail columns and would shear with the tail |
-| freshwater_angelfish | long trailing ventral streamers cross the tail columns |
 | manta_ray | no caudal fin; the pectoral wings are the swimming appendage, and the art is near-silhouette |
 | lionfish | giant fan pectoral fin overlaps the caudal band |
 | pufferfish_inflated | dorsal and anal fins sit inside the caudal band; two fins would deform |
