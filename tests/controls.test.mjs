@@ -375,3 +375,29 @@ test('Feed is a bounded cosmetic control: disabled when not swimming, one pellet
   assert.equal(awake.view.food, null);
   assert.equal(awake.render().has('aquarium-food-halo'), false);
 });
+
+test('food feedback paints above the family that reaches the target', () => {
+  // A fish at the deterministic pellet position used to cover it; the pellet and
+  // its halo must be the last children of the free-swimming layer.
+  const fish = {
+    address: "agent", status: "running", title: "agent",
+    program: { name: "Pi", agent: true }, space: "space",
+  };
+  const terminal = { address: "agent", state: "live", parent: null, status: "working",
+    program: { name: "Pi", agent: true, shell: false } };
+  const f = fixture(new Map([["aquarium.paused", false], ["aquarium.free", true]]),
+    false, { width: 500, height: 400 }, { agents: [fish], terminals: [terminal] });
+  f.view.size = { width: 500, height: 400 };
+  f.view.dropFood(f.cx);
+  assert.ok(f.view.food);
+  // The scheduler suite owns live motion; render needs one entry for this family.
+  f.view.motion.set("agent", { version: 1, state: { to: { x: 10, y: 10 }, phase: "parked", duration: 0 } });
+  f.render();
+  const layer = f.allNodes().find(node => node.childNodes.some(child => child.values?.id === "aquarium-food"));
+  assert.ok(layer, "food has a parent layer");
+  const ids = layer.childNodes.map(child => child.values?.id);
+  const family = ids.findIndex(id => id?.startsWith("family-"));
+  assert.ok(family >= 0, "a family is present");
+  assert.ok(ids.indexOf("aquarium-food-halo") > family, "halo is above the family");
+  assert.ok(ids.indexOf("aquarium-food") > family, "pellet is above the family");
+});
