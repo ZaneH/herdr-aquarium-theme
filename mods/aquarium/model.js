@@ -126,13 +126,16 @@ export function speciesName(species) {
   return species.split("_").map(word => word[0].toUpperCase() + word.slice(1)).join(" ");
 }
 
+// Reviewed in-place tail loops: conventional side views whose caudal fin is
+// separate from the body. Expand only after per-species anatomy/facing review.
+const IN_PLACE_TAIL = new Set(["clownfish", "blue_tang"]);
+
 export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, facing = "right", choice = null) {
   const species = savedSpecies(choice) || speciesFor(speciesAddress);
   if (floating) {
     // Fixed-facing frames can loop at any phase without competing with waypoint direction.
-    // shortcut: only clownfish has a reviewed loop; expand after per-species anatomy/facing checks.
-    if (species === "clownfish" && !paused && (agent.status === "working" || agent.status === "idle")) {
-      return `clownfish-tail-${facing === "left" ? "left" : "right"}.webp`;
+    if (IN_PLACE_TAIL.has(species) && !paused && (agent.status === "working" || agent.status === "idle")) {
+      return `${species}-tail-${facing === "left" ? "left" : "right"}.webp`;
     }
     return `${species}${facing === "left" ? "-left" : ""}${agent.status === "done" ? "-gold" : ""}.png`;
   }

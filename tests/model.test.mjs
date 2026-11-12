@@ -35,25 +35,31 @@ test('floating poses use explicit family heading, never an independent animation
   for (const paused of [true, false]) for (const turning of [true, false]) {
     for (const status of ['working', 'idle', 'blocked', 'done']) for (const face of ['left', 'right']) {
       const asset = fishAsset({ address: 'child', status }, paused, turning, address, true, face);
-      assert.equal(asset, `${speciesFor(address)}${face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`);
+      const species = speciesFor(address);
+      const active = !paused && ['working', 'idle'].includes(status);
+      assert.equal(asset, active && ['clownfish', 'blue_tang'].includes(species)
+        ? `${species}-tail-${face}.webp`
+        : `${species}${face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`);
       assert.ok(existsSync(new URL(`../mods/aquarium/assets/${asset}`, import.meta.url)));
     }
   }
 });
 
-test('in-place clownfish pilot loops only when active and never owns facing or a travel route', () => {
-  for (const face of ['left', 'right']) for (const turning of [true, false]) {
-    for (const status of ['working', 'idle', 'blocked', 'done', 'unknown']) {
-      for (const paused of [true, false]) {
-        const asset = fishAsset({ address: 'child', status }, paused, turning, 'leader', true, face, 'clownfish');
-        const active = !paused && ['working', 'idle'].includes(status);
-        assert.equal(asset, active ? `clownfish-tail-${face}.webp`
-          : `clownfish${face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`);
-        assert.ok(existsSync(new URL(`../mods/aquarium/assets/${asset}`, import.meta.url)));
+test('in-place tail pilots loop only when active and never own facing or a travel route', () => {
+  for (const species of ['clownfish', 'blue_tang']) {
+    for (const face of ['left', 'right']) for (const turning of [true, false]) {
+      for (const status of ['working', 'idle', 'blocked', 'done', 'unknown']) {
+        for (const paused of [true, false]) {
+          const asset = fishAsset({ address: 'child', status }, paused, turning, 'leader', true, face, species);
+          const active = !paused && ['working', 'idle'].includes(status);
+          assert.equal(asset, active ? `${species}-tail-${face}.webp`
+            : `${species}${face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`);
+          assert.ok(existsSync(new URL(`../mods/aquarium/assets/${asset}`, import.meta.url)));
+        }
       }
     }
+    assert.equal(fishAsset({ address: 'child', status: 'working' }, false, true, 'leader', false, 'left', species), `${species}-swim.webp`);
   }
-  assert.equal(fishAsset({ address: 'child', status: 'working' }, false, true, 'leader', false, 'left', 'clownfish'), 'clownfish-swim.webp');
 });
 
 test('floating families use bounded whole-tank paths and fit children without clipping', () => {
