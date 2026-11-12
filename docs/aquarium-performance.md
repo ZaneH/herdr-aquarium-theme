@@ -304,3 +304,48 @@ started at 18:49:34 local time. No restart command was issued; the cause is
 unconfirmed. Both official measurements and the stack diagnostic predate that
 change and must not be attributed to the replacement process. The historical source-proxy table above remains useful only
 for its recorded source-level scope, not as a substitute for these native costs.
+
+## Actual native ordinary-school evidence: synthetic 2/5/10, enabled versus paused
+
+Measured 2026-11-12, repository revision `38564a18276a76bb772ff2e696117ca9f7c71523`
+using `tools/prepare-native-fixture.mjs`. Production source SHA-256:
+`main.js` `7865128da91914c8bd8cd1cbd054142be48ebc3f14370f7680cd2c4db73a683b`,
+`model.js` `aed0bd1f2825d03e3c00f2676b44f434472951b9b988ba2716ee3e248031f775`,
+`motion.js` `3dbe6bb4e8e848de75dfcd75611d1c39685688be53870d827cd9668777fba519`,
+`presentation.js` `c82ccb5269aee737290c4144ee080c076de5261b92e9d1b5996eb689afa16b60`.
+The fixture `model.js`/`motion.js`/`presentation.js` are byte-identical production copies;
+per-condition manifests under the report directory record installed == generated hashes.
+Both conditions use Normal/Smooth Free-floating with bubbles and waves enabled and no food.
+The deterministic species mix includes the three reviewed tail loops. Unlike the historical
+250-root effects-off/PNG scene, this is not a movement-only comparison.
+
+Native GUI host **PID 80325**, `/Users/me/Applications/Herdr.app/Contents/MacOS/Herdr`,
+bundle `dev.herdr.app`, owner of `herdr-app.sock` (established by OS process queries, not the
+CLI). Start time `Wed Nov 11 23:38:56 2026`, unchanged across every window. Each condition had
+a 5-second warmup then a 15-second official window with 1 Hz OS cumulative process CPU-time and
+RSS samples plus per-sample foreground checks; only windows with all 16 samples showing Herdr
+frontmost count as valid, and windows that failed this are kept as invalid evidence. No shots,
+checks or status calls occurred inside official windows. Banner OCR confirmed the shown scene
+before every window; enabled screenshot A/B pairs differ and paused pairs are byte-identical
+(static control). 100% equals one logical CPU.
+
+| Condition | CPU (% of one logical CPU) | RSS start (MiB) | RSS end (MiB) | RSS mean (MiB) |
+|---|---:|---:|---:|---:|
+| 2 enabled | 22.03 | 163.656 | 164.156 | 163.897 |
+| 2 paused | 0.73 | 235.906 | 216.828 | 233.534 |
+| 5 enabled | 26.31 | 239.109 | 239.656 | 239.384 |
+| 5 paused | 0.73 | 240.531 | 240.672 | 240.499 |
+| 10 enabled | 32.06 | 237.719 | 248.078 | 235.493 |
+| 10 paused | 1.20 | 280.328 | 253.875 | 265.454 |
+
+These are single sequential whole-app observations per condition, not attribution: app user
+activity (the operator used other apps between windows), whole-app background work, sequential
+cache/allocator history and the short 15-second windows confound any comparison, and RSS
+differences must not be read as pause or animation memory effects. The worker returned to
+`aquarium`; the coordinator then restored the last observed pre-run `aquarium-immersive`
+layout and verified it. The coordinator independently recomputed all six CPU/RSS summaries
+from the raw samples and checked stable process identity and 16/16 foreground samples. Raw JSON, manifests, invalid windows and the
+full report are kept local-only under `.git/aquarium-reports/ordinary-native/2026-11-12T06-10-00/`.
+The fixture mod and two fixture layouts were intentionally left installed for parent
+inspection; existing user layout/mod files, terminals and saved preferences were not edited. No GPU, FPS or
+decoded-image-residency claims are supported by this run.
