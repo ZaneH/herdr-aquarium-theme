@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import * as model from '../mods/aquarium/model.js';
+import * as presentation from '../mods/aquarium/presentation.js';
 
 // Builder/callback contract check, NOT a native keyboard or layout acceptance test.
 const source = readFileSync(new URL('../mods/aquarium/main.js', import.meta.url), 'utf8')
@@ -27,7 +28,7 @@ function fixture(settings = new Map(), immersive = false, viewport = { width: 22
     return node;
   }
   const env = {
-    View: class {}, agents: () => [], terminals: () => [], theme: () => ({}),
+    ...presentation, View: class {}, agents: () => [], terminals: () => [], theme: () => ({}),
     props: () => ({ immersive, terminal: animationCase?.terminal }), shared: key => settings.get(key),
     run: (name, args) => commands.push([name, args]),
     nextCommand: () => new Promise(resolve => { receive = resolve; }),
@@ -126,7 +127,10 @@ test('actual tank descriptors use static assets and omit loops when suspended or
     const assets = nodes.filter(n => n.type === 'image').map(n => n.values.asset);
     if (state === 'active') {
       assert.ok(loops.some(n => n.values.id === 'surface-wave'));
-      assert.ok(loops.some(n => n.values.id === 'front-glass-blocked'));
+      const art = nodes.find(n => n.values.id === 'art-blocked');
+      assert.ok(art.values.transition);
+      assert.equal(art.values.opacity, 1);
+      assert.ok(!loops.some(n => n.values.id === 'art-blocked'));
       assert.ok(loops.some(n => n.values.id === 'attention-blocked'));
       assert.ok(assets.some(a => /bubbles-.*\.webp$/.test(a)));
       assert.ok(assets.some(a => /-swim\.webp$/.test(a)));

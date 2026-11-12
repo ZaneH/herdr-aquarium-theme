@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import * as motion from '../mods/aquarium/motion.js';
+import * as presentation from '../mods/aquarium/presentation.js';
 import { newCompletions } from '../mods/aquarium/model.js';
 
 // Exercise the actual view scheduler without starting GPUI or its command listener.
@@ -23,7 +24,7 @@ function fixture() {
     },
   } };
   const Aquarium = runInNewContext(`${source}\nAquarium;`, {
-    View: class {}, ...motion, newCompletions, Date: { now: () => clock.now },
+    View: class {}, ...motion, ...presentation, newCompletions, Date: { now: () => clock.now },
     appWindow: () => ({ active: clock.active }),
   });
   const view = new Aquarium();
@@ -115,6 +116,28 @@ test('leader hover cancels its only deadline; leaving never overrides pause or b
   f.sync(true, [{ ...families[0], leader: { address: 'parent', status: 'blocked' } }]);
   assert.equal(f.view.motion.get('parent').state.phase, 'parked');
   assert.equal(f.view.motionDue, Infinity);
+});
+
+test('a blocked descendant holds its working family; resolving attention resumes unless hovered', () => {
+  const f = fixture();
+  const child = { address: 'child', status: 'working' };
+  const members = [{ ...families[0], children: [{ agent: child, depth: 2 }] }];
+  f.sync(true, members);
+  f.fire(250);
+  f.clock.now = 1000;
+  const expected = motion.positionAt(f.view.motion.get('parent').state, f.clock.now);
+  child.status = 'blocked';
+  f.sync(true, members);
+  assert.equal(f.view.motion.get('parent').state.phase, 'parked');
+  assert.deepEqual(f.view.motion.get('parent').state.to, expected);
+  child.status = 'working';
+  f.view.hovered = 'child';
+  f.sync(true, members);
+  assert.equal(f.view.motion.get('parent').state.phase, 'parked');
+  f.view.hovered = null;
+  f.sync(true, members);
+  assert.equal(f.view.motion.get('parent').state.phase, 'ready');
+  assert.deepEqual(f.view.motion.get('parent').state.from, expected);
 });
 
 test('resize clamps the baseline; departed families and close cancel pending work', async () => {

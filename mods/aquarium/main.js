@@ -2,6 +2,7 @@ import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, Button, Switch, Radio, RadioGroup, Popover } from "gpui-base";
 import { agents, terminals, theme, run, shared, setShared, props, focused, nextCommand, window as appWindow } from "herdr";
 import { parkMotion, startMotion, advanceMotion } from "./motion.js";
+import { fishPresentation, familyNeedsAttention } from "./presentation.js";
 import { detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
 
 const ART = "mods/aquarium/assets";
@@ -88,7 +89,7 @@ export default class Aquarium extends View {
     for (const { leader, children = [], layout: g } of families) {
       addresses.add(leader.address);
       const held = this.hovered === leader.address || children.some(({ agent }) => agent.address === this.hovered);
-      const active = enabled && !held && leader.status !== "blocked" && leader.status !== "done" && (g.maxX > 0 || g.maxY > 0);
+      const active = enabled && !held && !familyNeedsAttention({ leader, children }) && leader.status !== "done" && (g.maxX > 0 || g.maxY > 0);
       const key = [g.width, g.height, g.maxX, g.maxY, g.top, active, speed, soft].join(":");
       const previous = this.motion.get(leader.address);
       if (previous?.key === key) continue;
@@ -179,6 +180,7 @@ export default class Aquarium extends View {
       }
     };
 
+    const hasAttention = school.some(a => a.status === "blocked");
     let tabIndex = 2;
     const drawFish = (a, width, scale, leader) => {
       const d = detailsFor(a, all.find(terminal => terminal.address === a.address));
@@ -187,9 +189,9 @@ export default class Aquarium extends View {
       const moving = animate && a.status !== "done" && a.status !== "blocked";
       const needsYou = a.status === "blocked";
       const traveling = moving && !free;
-      const fishSize = Math.min(width - 8, (needsYou ? 140 : 108) * scale);
-      const travelWidth = width * Math.min(1, scale / 0.6);
-      const artHeight = free ? fishSize : Math.max(fishSize, travelWidth / 4);
+      const presentation = fishPresentation(width, scale, needsYou, free);
+      const fishSize = presentation.size;
+      const travelWidth = presentation.travelWidth;
       const haloSize = 180 * scale;
       const motion = this.motion.get(leader.address);
       const pose = free
@@ -199,8 +201,12 @@ export default class Aquarium extends View {
           .children(["right", "left"].map(facing => image(`${ART}/${fishAsset(a, !animate, turning, leader.address, true, facing)}`)
             .absolute().top(0).left(0).size_full().opacity((motion?.state.face ?? "right") === facing ? 1 : 0)))
         : image(`${ART}/${fishAsset(a, !animate, turning, leader.address)}`).size_full();
-      const fish = div().absolute().top(0).left(traveling ? (width - travelWidth) / 2 : (width - fishSize) / 2)
+      const fish = div().id(`art-${a.address}`).absolute().top(presentation.top)
+        .left(traveling ? (width - travelWidth) / 2 : (width - fishSize) / 2)
         .w(traveling ? travelWidth : fishSize).h(traveling ? travelWidth / 4 : fishSize)
+        .opacity(needsYou || !hasAttention ? 1 : 0.84)
+        .when(animate, art => art.transition("width", 400).transition("height", 400)
+          .transition("left", 400).transition("top", 400).transition("opacity", 400))
         .when(needsYou, el => el.child(image(`${ART}/attention.svg`).id(`attention-${a.address}`)
           .absolute().top((fishSize - haloSize) / 2).left((fishSize - haloSize) / 2).size(haloSize)
           .when(animate, halo => halo.loop("opacity", { from: 0.5, to: 1, period: 3200 }))))
@@ -208,9 +214,8 @@ export default class Aquarium extends View {
         .when(animate && a.status === "done" && this.shimmers.has(a.address), el =>
           el.child(image(`${ART}/shimmer.svg`).id(`shimmer-${a.address}`).absolute()
             .top((fishSize - haloSize) / 2).left((fishSize - haloSize) / 2).size(haloSize)
-            .loop("opacity", { from: 0.15, to: 0.9, period: 1200 })))
-        .when(needsYou && animate, el => el.id(`front-glass-${a.address}`).loop("top", { from: 0, to: 6 * scale, period: 3200 }));
-      return Button.new(`fish-${a.address}`).tab_index(tabIndex++).relative().w(width).h(artHeight + 38).flex_none()
+            .loop("opacity", { from: 0.15, to: 0.9, period: 1200 })));
+      return Button.new(`fish-${a.address}`).tab_index(tabIndex++).relative().w(width).h(presentation.targetHeight).flex_none()
         .flex().flex_col().items_center().justify_end().pb(9)
         .border(1).border_color("#00000000").focus(s => s.border_color(tankInk.background))
         .accessibility_label(`${a.title || a.program.name}, ${statusLabel[a.status]}. ${d.join(". ")}. Open agent.`)

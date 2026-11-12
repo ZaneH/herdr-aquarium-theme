@@ -2,6 +2,7 @@
 // Source-description benchmark, NOT GPUI/native rendering. No dependencies.
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
+import * as presentation from '../mods/aquarium/presentation.js';
 import { performance } from 'node:perf_hooks';
 import { cpus, release, platform } from 'node:os';
 import { execFileSync } from 'node:child_process';
@@ -44,7 +45,7 @@ function fixture(count, nested, free, hidden = false) {
   const factory = kind => (...args) => element(kind, args);
   const widget = kind => ({ new: factory(kind) });
   const Aquarium = runInNewContext(source.replace(/^import .*;\n/gm, '').replace('export default class Aquarium', 'globalThis.Aquarium = class Aquarium') + '\nAquarium;', {
-    ...model, ...motion, View: class {}, div: factory('div'), image: factory('image'), h_flex: factory('h_flex'), v_flex: factory('v_flex'),
+    ...model, ...motion, ...presentation, View: class {}, div: factory('div'), image: factory('image'), h_flex: factory('h_flex'), v_flex: factory('v_flex'),
     ...Object.fromEntries(['Button', 'Switch', 'Radio', 'RadioGroup', 'Popover'].map(k => [k, widget(k)])),
     agents: () => listed, terminals: () => terminals, theme: () => ({}), props: () => ({ immersive: false }), focused: () => null,
     shared: key => key === 'aquarium.paused' ? false : key === 'aquarium.free' ? free : undefined,

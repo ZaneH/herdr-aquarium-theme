@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import * as model from '../mods/aquarium/model.js';
+import * as presentation from '../mods/aquarium/presentation.js';
 
 test('raw child peeks without suspension; mapped child retains immersive focus and Back', () => {
   const program = { key: 'pi', name: 'Pi', agent: true, shell: false };
@@ -27,7 +28,7 @@ test('raw child peeks without suspension; mapped child retains immersive focus a
     nodes.push(node);
     return node;
   }
-  const env = { ...model, View: class {}, agents: () => listed, terminals: () => [child],
+  const env = { ...model, ...presentation, View: class {}, agents: () => listed, terminals: () => [child],
     theme: () => ({}), props: () => ({ terminal, immersive: true }), focused: () => ({ agent: focus }),
     shared: key => key === 'aquarium.free' ? false : undefined,
     run: (command, args) => commands.push({ command, args }),

@@ -5,6 +5,7 @@ import { floatingGeometry, floatingSchoolGeometry } from '../mods/aquarium/model
 import { parkMotion } from '../mods/aquarium/motion.js';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
+import * as presentation from '../mods/aquarium/presentation.js';
 
 const families = counts => counts.map((count, i) => ({
   leader: { address: i % 2 ? `remote/t${i}` : `t${i}` },
@@ -150,7 +151,7 @@ test('actual render preserves all child hit targets, paused offsets and resize i
   }
   let free = true;
   const commands = [];
-  const env = { ...model, View: class {}, agents: () => agents, terminals: () => terminals,
+  const env = { ...model, ...presentation, View: class {}, agents: () => agents, terminals: () => terminals,
     theme: () => ({}), props: () => ({}), focused: () => null, shared: key => key === 'aquarium.free' ? free : undefined,
     run: (command, args) => commands.push({ command, args }),
     appWindow: () => ({ active: true }), window: { viewport_size: () => ({ width: 220, height: 240 }) } };
