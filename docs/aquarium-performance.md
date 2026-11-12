@@ -349,3 +349,51 @@ full report are kept local-only under `.git/aquarium-reports/ordinary-native/202
 The fixture mod and two fixture layouts were intentionally left installed for parent
 inspection; existing user layout/mod files, terminals and saved preferences were not edited. No GPU, FPS or
 decoded-image-residency claims are supported by this run.
+
+## Bounded read-only live ordinary stack diagnostic (ordinary-profile, 2026-11-12)
+
+One 3-second unprivileged `/usr/bin/sample` of the live GUI host, PID 80325
+(`/Users/me/Applications/Herdr.app/Contents/MacOS/Herdr`, version 0.1.15), taken
+at 01:10:42 local while Herdr was the foreground app (`lsappinfo info ASN:0x0-0x117117`
+showed `(in front)`, `type="Foreground"`). PID identity (command + start time
+2026-11-11 23:38:56) was verified before and after the capture and matched; no CLI
+helper was sampled. Scene per `herdr-app status`: layout `aquarium-immersive`,
+active space `herdr-aquarium-theme`, agent `t2`. Installed mod (plain copy at
+`~/.config/herdr-app/mods/aquarium/`, not a git checkout; repo revision 8ea1e8c)
+SHA-1 (from `shasum`, independently checked by the coordinator):
+`main.js` `a7654e954893a32f0656feaf50f58df9e3a043fa`,
+`model.js` `cf912d8c418034d52bc45ad366e7cda3e53a571f`,
+`motion.js` `b86e6c121aec5a36a2f7076985671c68a572f5b3`,
+`presentation.js` `9f4a99ec1896dba741843caac726770d17ffaf5a`.
+Raw output: `.git/aquarium-reports/ordinary-profile/20261112T011041/sample.txt` (local-only).
+
+Inclusive sample counts (1275 main-thread samples in 3 s; paths overlap, wait
+points are not exclusive CPU, and overlapping paths must not be summed): the main
+run loop serviced the main dispatch queue in 850; `gpui_macos::window::step` 825;
+`Window::draw` 576, of which `draw_roots` 368 and inside it
+`AnyElement::prepaint_as_root` 354 — a deep nested `Div::prepaint` chain that stays
+near-constant (~353 down to ~349) across dozens of nesting levels, i.e. the
+substantial native tree prepaint appears in the sampled draw path. This alone does not
+establish that every element is re-prepainted on every frame. Top Herdr-internal leaf
+frames: `BoundsTree::insert` 26, `ElementId::hash` 15, `SmolStr::hash` 13,
+`materialize_component` 13, `compute_flexbox_layout` 19 (+ block 9),
+`resolve_ops` 11, `ElementId::eq` 12. The mod's own JS render path
+(`ShellRuntime::build_snapshot` / `call_render` via rquickjs) is 3 samples
+(3 of 1275 main-thread observations). This is not an exclusive CPU percentage;
+the short capture does not rule out script or materialization costs in other scenes.
+
+Comparison with the earlier `native250-sample.txt` is qualitative only: different
+PID, scene (live school with eight pilot species supported at 8ea1e8c, not eight
+observed families; layout `aquarium-immersive`), sample
+duration and tool conditions; numbers are not comparable.
+
+Finding: native layout/prepaint is a worthwhile investigation target in this capture.
+The host controls redraw scheduling and exposes no documented dirty-region API to mods;
+this limits available remedies but does not prove that repository-level improvements
+are exhausted. One concrete source-level candidate is `drawFish`/`pose` in
+`mods/aquarium/main.js`: Free-floating constructs both facing images per fish and
+sets one to opacity zero. Building only the needed facing could reduce description
+tree size, subject to smooth-turn/attention/facing regressions. The sample does not
+establish whether invisible images incur measurable work or predict a native CPU
+saving. No GPU, FPS, resource-acceptance or exclusive-attribution claim follows
+from this single capture.
