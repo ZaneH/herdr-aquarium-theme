@@ -572,3 +572,15 @@ statistical proof; ordinary fish motion phase and system variability apply; no
 GPU/FPS measurement or proof of continuous animation from the sampled stills.
 The owned fixture tree, both fixture layouts and selected layout were restored;
 captured settings/shared/window/view hashes were unchanged.
+
+## Native virtual lists: interaction constraint
+
+A read-only check of the installed `gpui-shell` 0.7.1 API found `list`,
+`uniform_list` and `v_virtual_list`; these APIs are not absent. Their item
+renderers prohibit event-handler registration. The documented `on_item_click`
+contract supports one click target per row and explicitly lacks the handler
+lifetime needed for independently clickable parts within a row. Aquarium
+families need separate child targets and hover-to-hold behavior, so a naive
+lazy-list replacement would remove required interactions. No such substitution
+was made. This is a constraint on that approach, not the established cause of
+the 250-root check interruption or proof that every optimization is impossible.
