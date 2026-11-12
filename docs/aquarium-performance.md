@@ -85,7 +85,18 @@ Free samples measure queue selection plus real dispatched callbacks, including
 possible early completion-expiry work, and the dispatch assertion overhead—not
 pure motion callback cost, real wakeup frequency, or CPU utilization.
 Empty/organized scheduler values are `null`: not sampled, **not** evidence of
-no timers (organized cases can own completion-expiry tasks). Nodes are counted
+no timers (organized cases can own completion-expiry tasks). The current tool
+(revision later than `b50a31f`) measures **36 combinations**: fish counts 0, 2,
+5, 10, 100 and 250 across flat/nested/hidden shapes and organized/free
+arrangements, and hashes `main.js`, `model.js`, `motion.js` and
+`presentation.js`. Free scenes are classified before timing: a free scene with
+no persistent moving families (every family parked by blocked descendants or
+done leaders) drains its transient expiry tasks untimed and reports
+`scheduler: null` plus a `schedulerNote` — a legitimately empty queue, asserted
+rather than silently timed — while a free scene that does contain moving
+families asserts every sampled tick dispatches a real callback, so empty-tick
+overhead can never be reported as callback cost. These are source-description
+samples only; no native materialization, paint, CPU or GPU gains are claimed. Nodes are counted
 in a final render after synthetic timer sampling, whereas render timing occurs
 before the clock advances; these are not necessarily identical frames. Free
 scheduler dispatch can expire shimmers before that count, while organized cases

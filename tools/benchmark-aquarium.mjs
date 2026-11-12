@@ -73,7 +73,10 @@ if (process.argv.includes('--self-check')) {
   assert.equal(fishCount(result.tree), 21, 'render must discover 18 hidden children and the raw orphan');
   assert.ok(f.view.motion.has('orphan'), 'orphan must be an independent family');
   assert.equal(f.view.motion.size, 3);
-  f.tick(); f.view.stopMotion(); assert.equal(f.view.motionDue, Infinity);
+  assert.deepEqual([...f.view.motion.entries()].filter(([, e]) => e.state.phase !== 'parked').map(([a]) => a), ['orphan'], 'blocked descendants must park every fixture family (only the orphan moves)');
+  f.view.stopMotion(); assert.equal(f.view.motionDue, Infinity);
+  while (f.pending.size) assert.ok(f.tick(), 'parked scene must still drain transient expiry');
+  assert.equal(f.pending.size, 0, 'parked scene must leave an empty queue, not a silent scheduler failure');
   const concurrent = fixture(8, false, true);
   concurrent.render(); // Listed t3/t7 are done; working roots also schedule motion.
   const firstExpiry = concurrent.view.shimmers.get('t3');
@@ -92,13 +95,19 @@ if (process.argv.includes('--self-check')) {
   assert.ok(!concurrent.view.shimmers.has('t7'), 'remaining expiry callback must execute');
   assert.equal(concurrent.tick(), false, 'empty queue must not claim a dispatch');
   concurrent.view.stopMotion();
-  console.log('self-check: hidden descendants/orphan retained; concurrent shimmer and motion deadlines dispatch and cancel independently');
+  const live = fixture(6, false, true); // Flat working/idle roots keep swimming.
+  live.render();
+  assert.ok([...live.view.motion.values()].some(e => e.state.phase !== 'parked' && Number.isFinite(e.state.due)), 'moving scene must retain active families');
+  for (let i = 0; i < 5; i++) assert.ok(live.tick(), 'moving scene must keep dispatching motion');
+  assert.ok(live.view.motionTask, 'moving scene must reschedule motion after every dispatch');
+  live.view.stopMotion();
+  console.log('self-check: hidden descendants/orphan retained; concurrent shimmer and motion deadlines dispatch and cancel independently; parked nested scenes drain transient expiry to an empty queue; moving scenes keep scheduling');
   process.exit(0);
 }
 const repeats = 7, iterations = 100, warmup = 30;
-const hashes = Object.fromEntries(['main', 'model', 'motion'].map(name => [name, createHash('sha256').update(readFileSync(new URL(`../mods/aquarium/${name}.js`, import.meta.url))).digest('hex')]));
+const hashes = Object.fromEntries(['main', 'model', 'motion', 'presentation'].map(name => [name, createHash('sha256').update(readFileSync(new URL(`../mods/aquarium/${name}.js`, import.meta.url))).digest('hex')]));
 console.log(JSON.stringify({ metadata: { date: new Date().toISOString(), node: process.version, v8: process.versions.v8, os: `${platform()} ${release()}`, cpu: cpus()[0].model, cores: cpus().length, revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: new URL('../', import.meta.url), encoding: 'utf8' }).trim(), hashes, repeats, iterations, warmup, size: '900x500', units: 'milliseconds per call', scope: 'Node source descriptions with proxy builders; scheduler samples include synthetic queue selection plus dispatched callbacks (including early shimmer expiry); no native materialization, layout, image decode or paint' } }));
-for (const count of [0, 100, 250]) for (const shape of ['flat', 'nested', 'hidden']) for (const free of [false, true]) {
+for (const count of [0, 2, 5, 10, 100, 250]) for (const shape of ['flat', 'nested', 'hidden']) for (const free of [false, true]) {
   const f = fixture(count, shape !== 'flat', free, shape === 'hidden');
   const initial = f.render();
   const fishIds = [];
@@ -114,8 +123,20 @@ for (const count of [0, 100, 250]) for (const shape of ['flat', 'nested', 'hidde
   const discovered = model.schoolAgents(f.listed, f.terminals);
   const discovery = measure(() => model.schoolAgents(f.listed, f.terminals));
   const families = measure(() => model.schoolFamilies(discovered, f.terminals));
-  // Skip non-motion cases; never report empty tick overhead as callback cost.
-  const tick = free && count > 0 ? measure(() => assert.ok(f.tick(), 'scheduler sample requires a dispatched callback')) : null;
-  console.log(JSON.stringify({ count, shape, listed: f.listed.length, discovered: discovered.length, discovery, arrangement: free ? 'free' : 'organized', nodes: f.render().nodes, families: f.view.motion.size, render, grouping: families, scheduler: tick }));
+  // Skip non-motion cases; never report empty-tick overhead as callback cost.
+  const movingFamilies = () => [...f.view.motion.values()].filter(e => e.state.phase !== 'parked' && Number.isFinite(e.state.due)).length;
+  let tick = null, schedulerNote;
+  if (free && count > 0) {
+    if (movingFamilies() > 0) {
+      tick = measure(() => assert.ok(f.tick(), 'moving scene must keep dispatching scheduler callbacks'));
+    } else {
+      // Legitimately parked scene (blocked descendants/done leaders): drain transient expiry, do not time it.
+      const transient = f.pending.size;
+      while (f.pending.size) assert.ok(f.tick(), 'transient expiry must dispatch');
+      assert.equal(movingFamilies(), 0, 'drained scene must have no moving families left');
+      schedulerNote = `no persistent moving families (${transient} transient expiry tasks drained)`;
+    }
+  }
+  console.log(JSON.stringify({ count, shape, listed: f.listed.length, discovered: discovered.length, discovery, arrangement: free ? 'free' : 'organized', nodes: f.render().nodes, families: f.view.motion.size, render, grouping: families, scheduler: tick, ...(schedulerNote ? { schedulerNote } : {}) }));
   f.view.stopMotion();
 }
