@@ -518,3 +518,57 @@ layout background; native paint was independently confirmed (see
 `docs/native-fixture.md`). New background-bearing CPU/RSS windows are **not
 directly comparable** to old background-less windows without matched
 re-measurement. No CPU change is claimed from this fixture correction.
+
+## Bubbles and surface waves native comparison, 2 roots (2026-11-12, source `f765d76`)
+
+Whole-app Herdr CPU/RSS comparison of the native bubbles layer and the native
+surface-wave layer on the bright-background fixture, using the existing
+production `aquarium.bubbles` and `aquarium.water` shared flags overridable in
+the fixture shim. Four conditions — A bubbles+surface on, B bubbles off, C
+surface off, D both off — each measured twice in mirrored order A-B-C-D-D-C-B-A,
+one attempt per recorded window, 3 s warmup plus a 10 s official 1 Hz window
+(11/11 frontmost samples, identity stable). A preliminary installed-file hash
+comparison aborted before any official window; after correcting that check,
+all eight planned windows were recorded. Only the fixture-local `shared()` returns
+and the banner text differed; animate on, free arrangement, normal speed, food
+off, same avatars/data/backdrop. Raw evidence:
+`.git/aquarium-reports/effects-native/2026-11-12T15-21-23Z/` (private).
+
+| Condition | CPU % mean (one logical CPU) | RSS mean of window means (MiB) |
+|---|---:|---:|
+| A: bubbles on, surface on | 22.58 | 269.6 |
+| B: bubbles off, surface on | 23.39 | 282.4 |
+| C: bubbles on, surface off | 22.88 | 282.2 |
+| D: both off | 21.78 | 278.1 |
+
+Window-level CPU (CPU % = 100 × CPU-s delta ÷ actual elapsed): A 22.97/22.19,
+B 23.29/23.50, C 22.99/22.78, D 21.37/22.19.
+
+Relative to A, bubbles off changed CPU by **+0.81 percentage points**,
+surface off by **+0.30 pp**, and both off by **−0.80 pp**. These are simple
+contrasts against the all-on case, not isolated component costs. The non-additive
+interaction contrast is **−1.91 pp**; the two A windows differ by 0.78 pp and
+the D windows by 0.82 pp. Two observations per condition cannot distinguish
+reliable savings from session variability or establish an interaction mechanism.
+**Neither layer is a demonstrated optimization target**, and no zero-cost
+claim follows.
+
+RSS window means rose from 239.5 to 299.7 MiB in run order, across fixture
+reloads. This design cannot distinguish cache/allocator retention from other
+memory growth, including retained work. It establishes neither a leak nor a
+per-layer memory cost.
+
+Paint verification (shots and OCR outside the official windows): banner OCR read
+the true per-condition flags on all 8 windows; edge-strip glyph analysis shows
+bubble glyphs present in every ON window and absent in every OFF window; with
+bubbles held off, the 48-px surface strip differs on ~96 % of left-half pixels
+(+3.3/+2.2/+1.4 mean RGB, matching `surface.svg`'s mint blend) while the rows
+below are byte-identical, so the static background waves are cleanly separated
+from the animated overlay.
+
+Limitations: whole-app inclusive comparison (layer removal), not an exclusive
+CPU/GPU attribution or noise bound; 2 paired repeats in one session are not
+statistical proof; ordinary fish motion phase and system variability apply; no
+GPU/FPS measurement or proof of continuous animation from the sampled stills.
+The owned fixture tree, both fixture layouts and selected layout were restored;
+captured settings/shared/window/view hashes were unchanged.
