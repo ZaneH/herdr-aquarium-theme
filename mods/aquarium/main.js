@@ -1,7 +1,7 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex, Button, Switch, Radio, RadioGroup, Popover } from "gpui-base";
 import { agents, terminals, spaces, theme, run, shared, setShared, props, focused, nextCommand, window as appWindow } from "herdr";
-import { parkMotion, startMotion, advanceMotion } from "./motion.js";
+import { parkMotion, startMotion, advanceMotion, positionAt } from "./motion.js";
 import { fishPresentation, familyNeedsAttention } from "./presentation.js";
 import { SPECIES, familyChoiceKey, savedSpecies, speciesName, speciesFor, detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
 
@@ -149,8 +149,20 @@ export default class Aquarium extends View {
       this.motionDue = Infinity;
       if (this.closed || this.suspended || !appWindow()?.active) { this.stopMotion(); cx.notify(); return; }
       const now = Date.now();
-      for (const entry of this.motion.values()) {
-        entry.state = advanceMotion(entry.state, entry.geometry, now, entry.speed, entry.soft, entry.goal);
+      // Immutable snapshot of every family's reserved route rectangle, built
+      // before any state advances: later families see earlier ones pre-move.
+      const obstacles = [...this.motion].map(([address, entry]) => {
+        const g = entry.geometry;
+        const p = positionAt(entry.state, now);
+        const t = entry.state.pending?.to ?? entry.state.to;
+        const top = g.top ?? 0;
+        return { address,
+          x0: Math.min(p.x, t.x), y0: top + Math.min(p.y, t.y),
+          x1: Math.max(p.x, t.x) + g.width, y1: top + Math.max(p.y, t.y) + g.height };
+      });
+      for (const [address, entry] of this.motion) {
+        entry.state = advanceMotion(entry.state, entry.geometry, now, entry.speed, entry.soft, entry.goal,
+          obstacles.filter(o => o.address !== address));
       }
       cx.notify();
       this.scheduleMotion(cx);

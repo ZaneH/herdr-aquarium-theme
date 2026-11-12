@@ -43,10 +43,24 @@ test('one deadline serves all families; late callbacks advance only one phase', 
   f.sync(true, members);
   assert.equal(f.tasks.length, 1);
   const before = [...f.view.motion.values()].map(entry => entry.state);
+  const geometries = [...f.view.motion.values()].map(entry => entry.geometry);
+  const addresses = [...f.view.motion.keys()];
   f.fire(100000);
   assert.equal(f.tasks.length, 2);
+  // The scheduler builds every obstacle from the pre-advance snapshot, so the
+  // expected leg for each family is advanceMotion against the others' bounds.
+  const obstacles = before.map((state, i) => {
+    const g = geometries[i];
+    const p = motion.positionAt(state, 100000);
+    const t = state.pending?.to ?? state.to;
+    const top = g.top ?? 0;
+    return { address: addresses[i],
+      x0: Math.min(p.x, t.x), y0: top + Math.min(p.y, t.y),
+      x1: Math.max(p.x, t.x) + g.width, y1: top + Math.max(p.y, t.y) + g.height };
+  });
   for (const [i, entry] of [...f.view.motion.values()].entries()) {
-    assert.deepEqual(entry.state, motion.advanceMotion(before[i], entry.geometry, 100000, 'slow', true));
+    assert.deepEqual(entry.state, motion.advanceMotion(before[i], geometries[i], 100000, 'slow', true, null,
+      obstacles.filter(o => o.address !== addresses[i])));
     assert.ok(entry.state.due > 100000);
   }
 });
@@ -447,4 +461,74 @@ test('inactive window reconciliation cancels expiry and consumes completions wit
   f.view.syncCompletions(school('done'), false, f.cx);
   assert.equal(f.tasks.length, 1);
   assert.equal(f.view.shimmers.size, 0);
+});
+
+test('spacing decisions do not depend on family advance order', () => {
+  const members = [
+    { leader: { address: 'a', status: 'working' }, layout: { ...g, seed: 42 } },
+    { leader: { address: 'b', status: 'working' }, layout: { ...g, seed: 43, x: 180 } },
+  ];
+  const forward = fixture(), reverse = fixture();
+  forward.sync(true, members);
+  reverse.sync(true, [...members].reverse());
+  for (let i = 0; i < 24; i++) {
+    assert.equal(forward.view.motionDue, reverse.view.motionDue);
+    const now = forward.view.motionDue;
+    forward.fire(now);
+    reverse.fire(now);
+    for (const address of ['a', 'b']) {
+      assert.deepEqual(forward.view.motion.get(address).state, reverse.view.motion.get(address).state,
+        `${address}: iteration ${i}`);
+    }
+  }
+});
+
+test('soft spacing reserves held families and separate bands from a pre-advance snapshot', () => {
+  const f = fixture();
+  const layout = (seed, top = 0) => ({ ...g, seed, top });
+  const members = [
+    { leader: { address: 'held', status: 'working' }, layout: layout(42) },
+    { leader: { address: 'mover', status: 'working' }, layout: layout(46) },
+    { leader: { address: 'band', status: 'working' }, layout: layout(48, 1008) }];
+  f.view.hovered = 'held';
+  f.sync(true, members);
+  f.fire(250);
+  assert.equal(f.view.motion.get('held').state.phase, 'parked');
+  assert.equal(f.view.motion.get('mover').state.phase, 'moving');
+  // One advance round: every obstacle must come from these pre-advance states.
+  const before = new Map([...f.view.motion].map(([a, e]) => [a, e.state]));
+  const geoms = new Map([...f.view.motion].map(([a, e]) => [a, e.geometry]));
+  const reserved = (a, now) => {
+    const state = before.get(a), geom = geoms.get(a);
+    const p = motion.positionAt(state, now);
+    const t = state.pending?.to ?? state.to;
+    const top = geom.top ?? 0;
+    return { address: a, x0: Math.min(p.x, t.x), y0: top + Math.min(p.y, t.y),
+      x1: Math.max(p.x, t.x) + geom.width, y1: top + Math.max(p.y, t.y) + geom.height };
+  };
+  const now = before.get('mover').due;
+  f.fire(now);
+  const addresses = members.map(({ leader }) => leader.address);
+  for (const a of ['mover', 'band']) {
+    assert.deepEqual(f.view.motion.get(a).state,
+      motion.advanceMotion(before.get(a), geoms.get(a), now, 'slow', true, null,
+        addresses.filter(o => o !== a).map(o => reserved(o, now))), a);
+  }
+  // A separate scroll band is offset by its top: it keeps the plain baseline.
+  assert.deepEqual(f.view.motion.get('band').state,
+    motion.advanceMotion(before.get('band'), geoms.get('band'), now, 'slow', true));
+  assert.ok(f.view.motion.get('mover').state.due > now);
+  // The held family's parked rectangle moves the mover off its old baseline.
+  assert.notDeepEqual(f.view.motion.get('mover').state,
+    motion.advanceMotion(before.get('mover'), geoms.get('mover'), now, 'slow', true));
+  // A family alone never flees its own reserved rectangle.
+  const solo = fixture();
+  solo.sync(true, [{ leader: { address: 'solo', status: 'working' }, layout: layout(50) }]);
+  solo.fire(250);
+  for (let i = 0; i < 4; i++) {
+    const entry = solo.view.motion.get('solo');
+    const expected = motion.advanceMotion(entry.state, entry.geometry, entry.state.due, 'slow', true);
+    solo.fire(entry.state.due);
+    assert.deepEqual(solo.view.motion.get('solo').state, expected);
+  }
 });

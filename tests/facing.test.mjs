@@ -121,7 +121,7 @@ function renderFixture({ paused = false, active = true, suspended = false, turni
   };
   const cx = { notify() {}, timer: { after() { return { cancel() {} }; } } };
   const Aquarium = runInNewContext(`${mainSource}\nAquarium;`, {
-    ...model, parkMotion, startMotion, advanceMotion,
+    ...model, parkMotion, startMotion, advanceMotion, positionAt,
     fishPresentation, familyNeedsAttention, View: class {}, agents: () => agents, terminals: () => [], spaces: () => [],
     theme: () => ({}), props: () => ({}), focused: () => null,
     shared: key => key === 'aquarium.paused' ? paused : key === 'aquarium.turning' ? turning : undefined,

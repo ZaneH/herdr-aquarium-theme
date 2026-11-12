@@ -41,6 +41,14 @@ There is no tank heading or toolbar full of settings: the layout switch, station
 - **Surface waves:** a translucent surface ribbon slowly undulates across the top. Seamless fixed-size SVG tiles overscan both ends, so movement never exposes a shrinking image edge. Paused mode leaves it still.
 - **Night lighting:** off by default. A static deep-ocean-blue tint dims the habitat behind the fish. Labels, fish focus rings and empty-tank guidance use pale moonlit ink; artwork, status dots, food feedback and native controls keep their day colors. The setting is saved and independent of Animate aquarium.
 
+At each ordinary Free-floating waypoint decision, a family compares its original
+route with four nearby detours, preferring less sampled overlap with neighbors'
+reserved paths and an eight-pixel clearance. Reservations include the whole family
+and held/blocked/done fish, using one snapshot before any family advances. Clear
+routes stay unchanged; feeding goals retain priority. This is soft spacing, not
+collision avoidance: queued legs are not replanned mid-flight, and paths can still
+cross in crowded scenes or while feeding.
+
 The theme has no JavaScript frame loop: one cancellable view-level timer supplies waypoints and stationary turn phases to native GPUI transitions. This does not make host rendering free of script work; native profiling observes script snapshots alongside layout and paint. See [performance evidence and limits](docs/aquarium-performance.md).
 Working and idle agents move when enabled. A blocked member (including a nested child), or a done leader, parks the whole Free-floating family. A blocked fish approaches the glass as a centered 2D enlargement from 108 to 140 px (clamped in narrow lanes), with requested 400 ms native size/position transitions when animation is enabled. Its label and reserved click target stay fixed; it no longer bobs away from the pointer. A pulsing coral halo and **Needs you** text accompany it; other fish artwork recedes slightly to 84% opacity without dimming labels. Resolving attention restores the normal size and eligible family travel. This is a bounded 2D depth illusion with automated geometry/state checks, not yet a native visual/input acceptance claim. Done fish turn gold and show a brief three-second sparkle when first observed entering done with motion enabled; they stay gold until Herdr marks them seen/idle. The sparkle is native opacity animation, with one timer solely to remove it.
 Preferences are shared by both modes and saved by Herdr. Motion is opt-in instead of detecting OS reduced-motion settings, which this API does not expose.

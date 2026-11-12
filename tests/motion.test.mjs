@@ -107,3 +107,106 @@ test('food goal steers bounded legs toward the target, clamps and parks on arriv
   assert.deepEqual(far.to, { x: 500, y: 0 });
   assert.ok(Math.hypot(far.to.x - 480, far.to.y - 20) <= 144 + 1e-8);
 });
+
+// Independent overlap measure: sample the actual rendered positions of each
+// leg and sum rectangle overlap with a neighbor rect inflated by 8 px.
+const tank = { seed: 3, x: 0, y: 60, maxX: 600, maxY: 400, width: 156, height: 178, top: 0 };
+const neighbor = { address: 'neighbor', x0: 120, y0: 40, x1: 276, y1: 218 };
+
+function trajectory(obstacles, steps = 12) {
+  let m = startMotion(tank, null, 0);
+  const legs = [];
+  for (let i = 0; i < steps; i++) {
+    m = advanceMotion(m, tank, m.due, 'slow', true, null, obstacles);
+    if (m.phase === 'moving') legs.push(m);
+  }
+  return legs;
+}
+
+function measuredOverlap(legs) {
+  let total = 0;
+  for (const leg of legs) for (let s = 0; s <= 8; s++) {
+    const p = positionAt(leg, leg.started + leg.duration * s / 8);
+    const w = Math.min(p.x + tank.width, neighbor.x1 + 8) - Math.max(p.x, neighbor.x0 - 8);
+    const h = Math.min(p.y + tank.height, neighbor.y1 + 8) - Math.max(p.y, neighbor.y0 - 8);
+    if (w > 0 && h > 0) total += w * h;
+  }
+  return total;
+}
+
+test('soft spacing keeps the exact baseline with no or far obstacles', () => {
+  const far = [{ address: 'far', x0: 5000, y0: 5000, x1: 5100, y1: 5100 }];
+  for (const speed of ['slow', 'normal']) for (const soft of [false, true]) {
+    let plain = startMotion(tank, null, 0), spaced = startMotion(tank, null, 0);
+    let empty = startMotion(tank, null, 0);
+    for (let i = 0; i < 60; i++) {
+      const now = plain.due;
+      plain = advanceMotion(plain, tank, now, speed, soft);
+      spaced = advanceMotion(spaced, tank, now, speed, soft, null, far);
+      empty = advanceMotion(empty, tank, now, speed, soft, null, []);
+      assert.deepEqual(spaced, plain);
+      assert.deepEqual(empty, plain);
+    }
+  }
+});
+
+test('a crowded leg picks a measured better heading and stays deterministic', () => {
+  const base = trajectory([]);
+  const spaced = trajectory([neighbor]);
+  assert.ok(measuredOverlap([spaced[0]]) < measuredOverlap([base[0]]),
+    'less sampled overlap on the same first-leg duration, independent of later turn counts');
+  assert.ok(measuredOverlap(spaced) / spaced.length < measuredOverlap(base) / base.length,
+    'less mean sampled overlap per moving leg than baseline');
+  assert.ok(spaced.some((leg, i) => leg.phase === 'moving' &&
+    (base[i].to.x !== leg.to.x || base[i].to.y !== leg.to.y)), 'some leg deviates from baseline');
+  assert.deepEqual(trajectory([neighbor]), spaced, 'same obstacles, same trajectory');
+});
+
+test('food goals steer exactly as before even with obstacles present', () => {
+  const goal = { x: 260, y: 120 };
+  let m = startMotion(tank, null, 0);
+  for (let i = 0; i < 25; i++) {
+    const now = m.due;
+    const plain = advanceMotion(m, tank, now, 'slow', true, goal);
+    assert.deepEqual(advanceMotion(m, tank, now, 'slow', true, goal, [neighbor]), plain);
+    m = plain;
+  }
+});
+
+test('an unavoidable obstacle keeps the baseline leg and never stalls', () => {
+  const wall = [{ address: 'wall', x0: -2000, y0: -2000, x1: 3000, y1: 3000 }];
+  let base = startMotion(tank, null, 0), crowded = startMotion(tank, null, 0);
+  for (let i = 0; i < 12; i++) {
+    const now = base.due;
+    base = advanceMotion(base, tank, now, 'normal', false);
+    crowded = advanceMotion(crowded, tank, now, 'normal', false, null, wall);
+    assert.deepEqual(crowded, base);
+    assert.ok(crowded.due > now);
+  }
+});
+
+test('soft-spaced legs keep bounds, facing and turn phases at both speeds', () => {
+  for (const speed of ['slow', 'normal']) for (const soft of [false, true]) {
+    let m = startMotion(tank, null, 0);
+    let legs = 0;
+    for (let i = 0; i < 150; i++) {
+      const old = m;
+      m = advanceMotion(m, tank, m.due, speed, soft, null, [neighbor]);
+      if (m.phase === 'moving') {
+        legs++;
+        const dx = m.to.x - m.from.x, dy = m.to.y - m.from.y;
+        assert.ok(m.from.x >= -1e-9 && m.from.x <= tank.maxX + 1e-9 && m.from.y >= -1e-9 && m.from.y <= tank.maxY + 1e-9);
+        assert.ok(m.to.x >= -1e-9 && m.to.x <= tank.maxX + 1e-9 && m.to.y >= -1e-9 && m.to.y <= tank.maxY + 1e-9);
+        assert.equal(m.face, dx > 0 ? 'right' : dx < 0 ? 'left' : old.face);
+        if (dx || dy) assert.ok(Math.abs(m.heading - Math.atan2(dy, dx)) < 1e-10);
+        assert.equal(m.duration, speed === 'slow' ? 8000 : 6000);
+        assert.ok(Math.hypot(dx, dy) <= (speed === 'slow' ? 96 : 144) + 1e-8);
+      }
+      if (m.face !== old.face) {
+        assert.deepEqual(m.from, m.to);
+        assert.ok(soft ? old.phase === 'fade-out' && old.opacity === 0 : m.phase === 'turn');
+      }
+    }
+    assert.ok(legs > 30);
+  }
+});
