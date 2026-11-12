@@ -26,6 +26,7 @@ function fixture() {
   const Aquarium = runInNewContext(`${source}\nAquarium;`, {
     View: class {}, ...motion, ...presentation, newCompletions, Date: { now: () => clock.now },
     appWindow: () => clock.missingWindow ? null : ({ active: clock.active }),
+    shared: key => key === 'aquarium.free' ? undefined : false,
   });
   const view = new Aquarium();
   Object.assign(view, { motion: new Map(), motionDue: Infinity, motionGeneration: 0,
@@ -298,6 +299,68 @@ test('speed/turn changes re-prime from the current point; blocked/done leaders p
   }
 });
 
+
+test('feed steers at most three eligible families, keeps held/blocked priority and expires', () => {
+  const f = fixture();
+  f.view.size = { width: 500, height: 400 };
+  f.sync(true, [{ leader: { address: 'a', status: 'working' }, layout: { ...g } },
+    { leader: { address: 'b', status: 'working' }, layout: { ...g, seed: 44 } },
+    { leader: { address: 'c', status: 'working' }, layout: { ...g, seed: 45 } },
+    { leader: { address: 'd', status: 'working' }, layout: { ...g, seed: 46 } },
+    { leader: { address: 'held', status: 'working' }, layout: { ...g, seed: 47 } },
+    { leader: { address: 'stuck', status: 'blocked' }, layout: { ...g, seed: 48 } }]);
+  f.view.hovered = 'held';
+  f.view.dropFood(f.cx);
+  assert.ok(f.view.food && f.view.food.x > 0 && f.view.food.y > 0);
+  const expiry = f.tasks.at(-1);
+  assert.equal(expiry.delay, 10000);
+  // A second feed while one is active is ignored.
+  const tasks = f.tasks.length;
+  f.view.dropFood(f.cx);
+  assert.equal(f.tasks.length, tasks);
+  f.clock.now = 1000;
+  const members = [...f.view.motion.keys()].map(address => ({ leader: { address, status: address === 'stuck' ? 'blocked' : 'working' },
+    layout: f.view.motion.get(address).geometry }));
+  f.sync(true, members);
+  const pellet = { x: f.view.food.x - g.width / 2, y: f.view.food.y };
+  const goals = Object.fromEntries([...f.view.motion].map(([a, e]) => [a, e.goal]));
+  for (const [a, goal] of Object.entries({ a: pellet, b: pellet, c: pellet, d: null, held: null, stuck: null })) {
+    // Cross-realm goal objects are compared by field, not deep identity.
+    assert.deepEqual([goals[a]?.x, goals[a]?.y], goal ? [goal.x, goal.y] : [undefined, undefined], a);
+  }
+  // The same food and eligibility do not re-prime state.
+  const versions = new Map([...f.view.motion].map(([a, e]) => [a, e.version]));
+  f.sync(true, members);
+  for (const [a, e] of f.view.motion) assert.equal(e.version, versions.get(a));
+  // Expiry clears the food and the goals go with it.
+  f.clock.now = 11000;
+  expiry.callback(f.cx);
+  assert.equal(f.view.food, null);
+  f.sync(true, members);
+  for (const e of f.view.motion.values()) assert.equal(e.goal, null);
+});
+
+test('feed is refused while paused/organized/inactive and cancelled by stopMotion', () => {
+  const f = fixture();
+  f.view.size = { width: 500, height: 400 };
+  f.clock.active = false;
+  f.view.dropFood(f.cx);
+  assert.ok(!f.view.food);
+  f.clock.active = true;
+  f.view.closed = true;
+  f.view.dropFood(f.cx);
+  assert.ok(!f.view.food);
+  f.view.closed = false;
+  f.view.dropFood(f.cx);
+  assert.ok(f.view.food);
+  const expiry = f.tasks.at(-1);
+  f.view.stopMotion();
+  assert.equal(f.view.food, null);
+  assert.ok(expiry.cancelled);
+  // A stale expiry callback after cancellation stays inert.
+  expiry.callback(f.cx);
+  assert.ok(!f.view.food);
+});
 
 test('completion expiry cancels on departure, restart, pause and close; stale callbacks stay inert', async () => {
   const f = fixture();

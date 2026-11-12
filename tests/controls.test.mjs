@@ -50,9 +50,10 @@ function fixture(settings = new Map(), immersive = false, viewport = { width: 22
   for (const name of ['Button', 'Switch', 'Radio', 'RadioGroup', 'Popover']) env[name] = { new: id => element(name, id) };
   const Aquarium = runInNewContext(`${source}\nAquarium;`, env);
   const view = new Aquarium();
-  Object.assign(view, { size: { width: 220, height: 240 }, previous: new Map(), shimmers: new Map(), motion: new Map(), optionsOpen: false });
+  Object.assign(view, { size: { width: 220, height: 240 }, previous: new Map(), shimmers: new Map(), motion: new Map(), food: null, optionsOpen: false });
   view.syncMotion = () => {}; // Scheduler is outside this suite's scope.
-  const cx = { notify() {}, timer: { after() { return { cancel() {} }; } } };
+  view.stopMotion = () => { view.clearFood(); }; // Feed state only; motion work belongs to the scheduler suite.
+  const cx = { notify() {}, bind_keys: () => 1, timer: { after() { return { cancel() {} }; } } };
   return { view, cx, commands,
     listen() { view.init({}, { spawn(callback) { callback(cx); } }); },
     async deliver(command) { receive(command); await new Promise(resolve => setImmediate(resolve)); },
@@ -227,7 +228,7 @@ test('picker is stationary, bounded, lazy, and closes mutually with Options', ()
   nodes.get('aquarium-fish-picker').values.on_open_change(true, f.cx);
   assert.equal(f.view.optionsOpen, false);
   nodes = f.render();
-  const staleChoice = nodes.get('aquarium-fish-choice-koi').values.on_change;
+  const staleChoice = nodes.get('aquarium-fish-choice-clownfish').values.on_change;
   nodes.get('aquarium-options').values.on_open_change(true, f.cx);
   assert.equal(f.view.pickerTarget, null);
   staleChoice(true);
@@ -258,8 +259,42 @@ test('fish picker persists validated family choices and captures intended target
   nodes.get('aquarium-fish-picker').values.on_open_change(true, f.cx);
   f.view.hovered = 't2';
   nodes = f.render();
-  assert.equal(nodes.get('aquarium-fish-species').childNodes.length, 26);
-  assert.ok('flex_none' in nodes.get('aquarium-fish-species').values);
+  const pageRows = nodes.get('aquarium-fish-species').childNodes.length;
+  assert.ok(pageRows > 0 && pageRows < 26, 'picker shows one bounded page, not every species at once');
+  // Regression: native scrolling inside the Popover never established itself, so
+  // the picker pages its choices. Every direct child of the bounded area is a
+  // nonshrinking plain element, and Prev/Next must reach every species.
+  const scroll = nodes.get('aquarium-fish-picker-scroll');
+  assert.ok('overflow_y_scrollbar' in scroll.values);
+  for (const child of scroll.childNodes) {
+    assert.ok(['div', 'v_flex', 'h_flex'].includes(child.type), `no component may sit directly in the scroll area (${child.type})`);
+    assert.ok('flex_none' in child.values, 'every direct child must be nonshrinking');
+  }
+  const group = scroll.childNodes.find(c => c.childNodes.some(g => g?.values?.id === 'aquarium-fish-species'));
+  assert.ok(group, 'species group sits inside a nonshrinking plain wrapper');
+  const pageCount = Math.ceil(26 / pageRows);
+  assert.match(String(nodes.get('aquarium-fish-page').childNodes[0]), /Page 1 of /);
+  const seen = [];
+  let current = f.render();
+  for (let page = 0; page < pageCount; page++) {
+    for (const radio of current.get('aquarium-fish-species').childNodes) seen.push(radio.values.id);
+    if (page < pageCount - 1) { current.get('aquarium-fish-next').values.on_click({}, f.cx); current = f.render(); }
+  }
+  assert.equal(seen.length, 26, 'every page adds its rows exactly once');
+  for (const species of ['automatic', ...model.SPECIES])
+    assert.ok(seen.includes(`aquarium-fish-choice-${species}`), `${species} reachable by paging`);
+  assert.equal(f.view.pickerPage, pageCount - 1, 'Next stops on the last page');
+  assert.equal(f.render().get('aquarium-fish-next').values.disabled, true);
+  assert.equal(f.render().get('aquarium-fish-prev').values.disabled, false);
+  assert.ok(f.render().get('aquarium-fish-choice-clownfish') === undefined, 'last page omits earlier rows');
+  // Selecting on a late page persists, and reopening lands on the selection's page.
+  f.view.pickerPage = pageCount - 1;
+  const last = f.render();
+  assert.ok(last.get('aquarium-fish-choice-silver_arowana'), 'final species present on the last page');
+  last.get('aquarium-fish-choice-silver_arowana').values.on_change(true);
+  assert.equal(settings.get(model.familyChoiceKey(a, data.spaces)), 'silver_arowana');
+  f.view.pickerPage = 0;
+  nodes = f.render();
   nodes.get('aquarium-fish-choice-clownfish').values.on_change(true);
   const key = model.familyChoiceKey(a, data.spaces);
   assert.equal(settings.get(key), 'clownfish');
@@ -283,4 +318,42 @@ test('fish picker persists validated family choices and captures intended target
   assert.equal(model.familyChoiceKey({ ...a, space: 'missing' }, data.spaces), null);
   assert.notEqual(key, model.familyChoiceKey({ ...a, space: b.space }, data.spaces));
   assert.notEqual(key, model.familyChoiceKey({ ...a, address: 'another' }, data.spaces));
+});
+
+test('Feed is a bounded cosmetic control: disabled when not swimming, one pellet, keyboard action', async () => {
+  const f = fixture();
+  f.listen();
+  f.render();
+  // Fresh install: motion off by default, Feed disabled with an explaining label.
+  const idle = f.render();
+  assert.equal(idle.get('aquarium-feed').values.disabled, true);
+  assert.match(idle.get('aquarium-feed').values.accessibility_label, /free-floating motion/);
+  assert.equal(idle.has('aquarium-food'), false);
+  // Motion enabled: feed drops one bounded pellet; a second feed is ignored.
+  const settings = new Map([['aquarium.paused', false], ['aquarium.free', true]]);
+  const on = fixture(settings);
+  on.listen();
+  await on.deliver('feed');
+  assert.ok(on.view.food && on.view.food.x > 0 && on.view.food.y > 0);
+  const food = on.view.food;
+  await on.deliver('feed');
+  assert.strictEqual(on.view.food, food);
+  const rendered = on.render();
+  // In-panel confirmation: label changes and the control rests while food is active.
+  assert.equal(rendered.get('aquarium-feed').values.disabled, true);
+  assert.equal(rendered.get('aquarium-feed').childNodes[0], 'Feeding…');
+  assert.equal(rendered.get('aquarium-food').values.left, food.x - 4);
+  // Disabled reason is discoverable from the control itself.
+  assert.match(idle.get('aquarium-feed').values.tooltip, /Options/);
+  assert.match(idle.get('aquarium-feed').values.tooltip, /free-floating/i);
+  // Keyboard action handler and key binding reach the same bounded drop.
+  const bound = on.render().get('aquarium-root');
+  bound.values.on_action[1]({ action: 'aquarium.feed' }, on.cx);
+  assert.strictEqual(on.view.food, food);
+  // Pause clears the pellet and Feed returns to disabled.
+  settings.set('aquarium.paused', true);
+  on.render();
+  assert.equal(on.view.food, null);
+  assert.equal(on.render().get('aquarium-feed').values.disabled, true);
+  assert.equal(on.render().has('aquarium-food'), false);
 });

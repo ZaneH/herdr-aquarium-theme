@@ -81,3 +81,29 @@ test('zero bounds stay stationary and retain face', () => {
     assert.equal(m.face, 'left');
   }
 });
+
+test('food goal steers bounded legs toward the target, clamps and parks on arrival', () => {
+  const g = { seed: 7, x: 0, y: 0, maxX: 500, maxY: 400 };
+  const goal = { x: 480, y: 20 };
+  let m = startMotion(g, null, 0);
+  let arrived = false;
+  for (let i = 0; i < 60 && !arrived; i++) {
+    m = advanceMotion(m, g, m.due, 'slow', true, goal);
+    const dx = m.to.x - m.from.x, dy = m.to.y - m.from.y;
+    if (m.phase !== 'moving') { assert.deepEqual(m.from, m.to); continue; }
+    arrived = !dx && !dy;
+    if (!arrived) {
+      assert.ok(Math.hypot(dx, dy) <= 96 + 1e-8);
+      assert.ok(Math.hypot(goal.x - m.from.x, goal.y - m.from.y)
+        >= Math.hypot(goal.x - m.to.x, goal.y - m.to.y) - 1e-8);
+    }
+  }
+  assert.ok(arrived);
+  assert.deepEqual(positionAt(m, m.started), { x: Math.min(goal.x, 500), y: Math.max(0, goal.y) });
+  // A goal outside the bounds aims at the clamped target instead of leaving the tank.
+  const bounds = { ...g, x: 480, y: 20 };
+  let far = advanceMotion(m, bounds, 9999999, 'normal', false, { x: 99999, y: -50 });
+  if (far.phase === 'turn') far = advanceMotion(far, bounds, far.due, 'normal', false, { x: 99999, y: -50 });
+  assert.deepEqual(far.to, { x: 500, y: 0 });
+  assert.ok(Math.hypot(far.to.x - 480, far.to.y - 20) <= 144 + 1e-8);
+});

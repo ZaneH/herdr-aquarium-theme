@@ -17,6 +17,7 @@ export default class Aquarium extends View {
     this.previous = new Map();
     this.shimmers = new Map();
     this.optionsOpen = false;
+    this.food = null;
     this.pickerTarget = null;
     this.inspected = null;
     this.motion = new Map();
@@ -25,6 +26,8 @@ export default class Aquarium extends View {
     this.suspended = false;
     this.closed = false;
     cx.spawn(async cx => {
+      // Keyboard equivalent of the Feed button, live only while the keyboard is inside the tank.
+      cx.bind_keys([{ keystroke: "f", action: "aquarium.feed", context: "Aquarium" }]);
       for (;;) {
         const command = await nextCommand();
         if (command === "motion") setShared("aquarium.paused", shared("aquarium.paused") === false);
@@ -33,6 +36,7 @@ export default class Aquarium extends View {
         if (command === "water") setShared("aquarium.water", shared("aquarium.water") === false);
         if (command === "arrangement") setShared("aquarium.free", shared("aquarium.free") === false);
         if (command === "options") { this.optionsOpen = !this.optionsOpen; cx.notify(); }
+        if (command === "feed") this.dropFood(cx);
         if (command === "resume") { this.suspended = false; cx.notify(); }
       }
     });
@@ -41,6 +45,7 @@ export default class Aquarium extends View {
   stopMotion() {
     // All callers stop aquarium activity (close, explicit navigation, or inactive window).
     this.pickerTarget = null;
+    this.clearFood();
     for (const task of this.shimmers.values()) task.cancel();
     this.shimmers.clear();
     this.motionTask?.cancel();
@@ -53,6 +58,26 @@ export default class Aquarium extends View {
       entry.key = null;
       entry.version++;
     }
+  }
+
+  dropFood(cx) {
+    // One bounded pellet at a time, at a deterministic spot in the free-floating school.
+    if (this.closed || this.suspended || !appWindow()?.active || this.food) return;
+    if (shared("aquarium.paused") !== false || shared("aquarium.free") === false) return;
+    const bodyTop = (this.controlsHeight ?? 30) + 20;
+    const food = { x: Math.max(20, (this.size.width - 32) / 2),
+      y: Math.max(40, Math.max(178, this.size.height - 68 - bodyTop) / 2) };
+    const task = cx.timer.after(10000, cx => {
+      if (this.food?.task === task) { this.food = null; cx.notify(); }
+    });
+    this.food = { ...food, task };
+    cx.notify();
+  }
+
+  clearFood() {
+    if (!this.food) return;
+    this.food.task?.cancel();
+    this.food = null;
   }
 
   async close() {
@@ -89,14 +114,18 @@ export default class Aquarium extends View {
     enabled = Boolean(enabled && !this.suspended && appWindow()?.active);
     const now = Date.now();
     const addresses = new Set();
+    const food = enabled && this.food ? this.food : null;
+    let fed = 0;
     for (const { leader, children = [], layout: g } of families) {
       addresses.add(leader.address);
       const held = this.pickerTarget?.address === leader.address || this.hovered === leader.address || children.some(({ agent }) => agent.address === this.hovered);
       const active = enabled && !held && !familyNeedsAttention({ leader, children }) && leader.status !== "done" && (g.maxX > 0 || g.maxY > 0);
-      const key = [g.width, g.height, g.maxX, g.maxY, g.top, active, speed, soft].join(":");
+      // Bounded feeding: at most three eligible swimming families approach, held/blocked/done keep priority.
+      const goal = food && active && fed < 3 ? (fed++, { x: food.x - g.width / 2, y: food.y - (g.top ?? 0) }) : null;
+      const key = [g.width, g.height, g.maxX, g.maxY, g.top, active, speed, soft, Boolean(goal)].join(":");
       const previous = this.motion.get(leader.address);
-      if (previous?.key === key) continue;
-      this.motion.set(leader.address, { key, geometry: g, speed, soft,
+      if (previous?.key === key) { previous.goal = goal; continue; }
+      this.motion.set(leader.address, { key, geometry: g, speed, soft, goal,
         version: (previous?.version ?? 0) + 1,
         state: active ? startMotion(g, previous?.state, now) : parkMotion(g, previous?.state, now) });
     }
@@ -121,7 +150,7 @@ export default class Aquarium extends View {
       if (this.closed || this.suspended || !appWindow()?.active) { this.stopMotion(); cx.notify(); return; }
       const now = Date.now();
       for (const entry of this.motion.values()) {
-        entry.state = advanceMotion(entry.state, entry.geometry, now, entry.speed, entry.soft);
+        entry.state = advanceMotion(entry.state, entry.geometry, now, entry.speed, entry.soft, entry.goal);
       }
       cx.notify();
       this.scheduleMotion(cx);
@@ -164,6 +193,8 @@ export default class Aquarium extends View {
     const water = shared("aquarium.water") !== false;
     const free = shared("aquarium.free") !== false;
     const speed = shared("aquarium.speed") === "normal" ? "normal" : "slow";
+    // Food is cosmetic and dies with pause/suspension/inactivity/organized mode.
+    if ((!animate || !free) && this.food) this.clearFood();
     this.syncCompletions(school, !animate, cx);
     const selected = school.find(a => a.address === this.hovered)
       ?? focusedAgent ?? school.find(a => a.focused) ?? school[0];
@@ -289,11 +320,19 @@ export default class Aquarium extends View {
       const target = this.pickerTarget;
       const isOpen = Boolean(target);
       const value = isOpen ? savedSpecies(shared(target.key)) : null;
+      // shortcut: native popup scrolling remains unverified; page choices until it is reliable.
+      const allChoices = [null, ...SPECIES];
+      const pageRows = Math.max(1, Math.floor((Math.max(0, Math.min(420, window.viewport_size().height - 24)) - 88) / 48));
+      const pageCount = Math.max(1, Math.ceil(allChoices.length / pageRows));
+      const page = Math.min(Math.max(0, this.pickerPage || 0), pageCount - 1);
+      const rows = isOpen ? allChoices.slice(page * pageRows, page * pageRows + pageRows) : [];
       return Popover.new("aquarium-fish-picker").open(isOpen).anchor("top_left")
         .on_open_change((open, cx) => {
           // Capture identity at opening, never follow hover/focus while editing.
           this.pickerTarget = open && key ? { key, address: leader.address, title: leader.title || leader.address } : null;
           if (open) this.optionsOpen = false;
+          // Open on the page holding the saved choice, so the selection is visible.
+          this.pickerPage = open && key ? Math.floor(Math.max(0, allChoices.indexOf(savedSpecies(shared(key)))) / pageRows) : 0;
           cx.notify();
         })
         .trigger(this.button("aquarium-fish-picker-trigger", "Choose fish", undefined)
@@ -301,18 +340,26 @@ export default class Aquarium extends View {
         .content(v_flex().id("aquarium-fish-picker-scroll").w(Math.min(260, Math.max(0, window.viewport_size().width - 24)))
           .max_h(Math.max(0, Math.min(420, window.viewport_size().height - 24))).overflow_y_scrollbar()
           .p(12).gap(6).bg(t.surface).text_color(t.foreground).rounded(8)
-          .child(div().child(`Fish for ${isOpen ? target.title : leader?.title || leader?.address || "no family"}`))
-          .child(RadioGroup.new("aquarium-fish-species").axis("vertical").accessibility_label("Family fish species")
-            .flex_none().flex().flex_col().gap(4)
-            .children((isOpen ? [null, ...SPECIES] : []).map(species => Radio.new(`aquarium-fish-choice-${species || "automatic"}`)
-              .checked(value === species).on_change(() => {
-                if (isOpen && this.pickerTarget?.key === target.key) setShared(target.key, species);
-              }).h(44).w_full().flex_none().flex().items_center().gap(8).px(6)
-              .border(1).border_color(value === species ? t.accent : "#00000000")
-              .focus(s => s.border_color(t.accent)).hover(s => s.bg(t.hover))
-              .accessibility_label(species ? speciesName(species) : "Automatic")
-              .when(Boolean(species), el => el.child(image(`${ART}/${species}.png`).size(38)))
-              .child(species ? speciesName(species) : "Automatic")))));
+          .child(div().flex_none().child(`Fish for ${isOpen ? target.title : leader?.title || leader?.address || "no family"}`))
+          // Nonshrinking plain wrapper: a bounded column collapses shrinkable children
+          // instead of overflowing, and a bare RadioGroup cannot carry flex_none.
+          .child(v_flex().flex_none()
+            .child(RadioGroup.new("aquarium-fish-species").axis("vertical").accessibility_label("Family fish species")
+              .flex().flex_col().gap(4)
+                .children(rows.map(species => Radio.new(`aquarium-fish-choice-${species || "automatic"}`)
+                  .checked(value === species).on_change(() => {
+                    if (isOpen && this.pickerTarget?.key === target.key) setShared(target.key, species);
+                  }).h(44).w_full().flex_none().flex().items_center().gap(8).px(6)
+                  .border(1).border_color(value === species ? t.accent : "#00000000")
+                  .focus(s => s.border_color(t.accent)).hover(s => s.bg(t.hover))
+                  .accessibility_label(species ? speciesName(species) : "Automatic")
+                  .when(Boolean(species), el => el.child(image(`${ART}/${species}.png`).size(38)))
+                  .child(species ? speciesName(species) : "Automatic")))))
+          .child(h_flex().flex_none().gap(8).items_center()
+            .child(this.button("aquarium-fish-prev", "‹ Prev", page > 0 ? (_event, cx) => { this.pickerPage = page - 1; cx.notify(); } : undefined).disabled(page <= 0))
+            .child(div().id("aquarium-fish-page").flex_none().text_size(12).text_color(t.muted)
+              .child(`Page ${page + 1} of ${pageCount}`))
+            .child(this.button("aquarium-fish-next", "Next ›", page < pageCount - 1 ? (_event, cx) => { this.pickerPage = page + 1; cx.notify(); } : undefined).disabled(page >= pageCount - 1))));
     };
 
     const schoolTop = (this.controlsHeight ?? 30) + 20;
@@ -323,6 +370,9 @@ export default class Aquarium extends View {
     this.syncMotion(floats, free && animate, speed, turning, cx);
     const schoolView = free
       ? div().relative().w(bodyWidth).h(floatingSchool.height).flex_none()
+        .when(this.food, el => el.child(div().id("aquarium-food").absolute()
+          .left(this.food.x - 4).top(this.food.y - 4).size(8).rounded_full()
+          .bg("#c98a3d").border(1).border_color("#8a5a2b")))
         .children(floats.map(({ leader, children, layout: g }) => {
           const entry = this.motion.get(leader.address);
           const m = entry.state;
@@ -374,8 +424,18 @@ export default class Aquarium extends View {
         }
       })
       .child(this.button("aquarium-mode", immersive ? "Workspace" : "Immersive", () => { this.suspended = true; this.stopMotion(); run("layout.switch", { name: immersive ? "aquarium" : "aquarium-immersive" }); run("aquarium.resume"); }))
+      .child(this.button("aquarium-feed", this.food ? "Feeding…" : "Feed", animate && free ? (_event, cx) => this.dropFood(cx) : undefined)
+        .disabled(!animate || !free || Boolean(this.food))
+        .tooltip(animate && free
+          ? "Drop one food pellet (or press f while the tank has the keyboard); one at a time, it expires after ten seconds"
+          : "Feed needs Animate aquarium and Free-floating on, in Options")
+        .accessibility_label(animate && free
+          ? (this.food ? "Feeding: pellet in the water, expires shortly" : "Drop fish food")
+          : "Fish food needs free-floating motion enabled"))
       .child(fishPicker()).child(options);
     return v_flex().id("aquarium-root").size_full().text_color(t.foreground)
+      .key_context("Aquarium")
+      .on_action("aquarium.feed", (_event, cx) => this.dropFood(cx))
       .on_size_change((size, cx) => {
         if (Math.abs(size.width - this.size.width) > 1 || Math.abs(size.height - this.size.height) > 1) {
           this.size = size;

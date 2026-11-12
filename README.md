@@ -53,7 +53,14 @@ herdr-app do aquarium.bubbles
 herdr-app do aquarium.water
 herdr-app do aquarium.arrangement
 herdr-app do aquarium.options
+herdr-app do aquarium.feed
 ```
+
+**Feed** drops one bounded food pellet at a deterministic spot in the free-floating school: at most three eligible swimming families steer their existing waypoint legs toward it, held/hovered, blocked and done fish keep their interaction and attention priority, and the pellet expires after ten seconds or is cancelled on pause, suspension, window inactivity, organized mode, mode/layout navigation and close. While a pellet is in the water the control reads **Feeding…** and rests until it expires, providing visible confirmation; when motion is unavailable its tooltip explains the required Options settings. It is cosmetic only: no physics, hunger, fake agent progress, telemetry or extra timers per family.
+
+Keyboard: lowercase `f` is bound to `aquarium.feed` under the tank's `Aquarium` key context, intended for use while a tank control has keyboard focus, not while typing in a terminal. Alternatively, **Tab** to the Feed button, then use **Space** or **Enter**. These paths use documented native APIs; physical key dispatch, hit-testing and appearance still need a live check before #14 can be accepted.
+
+To test by hand: deploy the mod, open the aquarium, turn **Animate aquarium** and **Free-floating** on in Options (otherwise Feed is disabled and its tooltip says so), keep at least one **idle or working** family eligible (held/hovered, blocked and done fish do not feed), move the pointer off the fish, put the keyboard in the tank (click a tank control, e.g. Feed), press `f` (or click Feed): the label flips to **Feeding…** and a pellet appears mid-tank; at Slow speed wait out the native transition legs while up to three families steer toward it; after ten seconds the pellet expires and the label returns to **Feed**. Feed again only after it expires — one pellet at a time.
 
 The source sheets are **camera rotations, not fin-flapping animation**. Free-floating now has a **clownfish-only in-place animation pilot**: 12 native WebP frames at 100 ms, with subtle build-time procedural tail motion and a fixed head/facing. Choose Clownfish and enable Animate aquarium to use it; hovering holds travel while the small tail loop can continue. Paused/inactive/blocked/done fish retain still/gold art. Other Free-floating species remain directional stills; Organized keeps the original travelling/turning clips. This pilot is not the original authored swim cycle, a 3D rotation, or all-species animation restoration. Its source/encoded frames are tested and an offline contact sheet reviewed; native appearance/performance remains unverified. Gold is a lightweight baked PNG effect, not a live material shader. No speed slider, collision physics, or new dependencies in the running app.
 
@@ -126,7 +133,10 @@ Fish art: **[Polyy.AI — 2D Fish Sprites Pack](https://polyyai.itch.io/2d-fish-
 ### Saved family fish
 Hover a fish, then use the single stationary **Choose fish** control beside
 Options. Its popover names the captured family and offers 25 named previews plus
-**Automatic** reset. Children inherit the leader's choice; motion/facing and
+**Automatic** reset. Native scrolling of that list inside the popover never established itself,
+so the picker pages its rows instead: Prev/Next and a page count keep every species reachable by
+click or keyboard, at full readable size, clamped to short or narrow windows. Opening lands on the
+page holding the saved choice. Children inherit the leader's choice; motion/facing and
 status semantics are unchanged. Opening holds that family's drift until closed,
 and moving the pointer elsewhere cannot redirect an open picker. Controls wrap
 in narrow panes and reserve their measured height above the school. Roots without
