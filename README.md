@@ -71,7 +71,23 @@ Keyboard: lowercase `f` is bound to `aquarium.feed` under the tank's `Aquarium` 
 
 To test by hand: deploy the mod, open the aquarium, turn **Animate aquarium** and **Free-floating** on in Options (otherwise Feed is disabled and its tooltip says so), keep at least one **idle or working** family eligible (held/hovered, blocked and done fish do not feed), move the pointer off the fish, put the keyboard in the tank (click a tank control, e.g. Feed), press `f` (or click Feed): the label flips to **Feeding…** and a pellet appears mid-tank; at Slow speed wait out the native transition legs while up to three families steer toward it; after ten seconds the pellet expires and the label returns to **Feed**. Feed again only after it expires — one pellet at a time.
 
-The source sheets are **camera rotations, not fin-flapping animation**. Free-floating now has an **eleven-species in-place animation pilot** (clownfish, blue tang, koi, largemouth bass, rainbow trout, sockeye salmon, piranha, swordfish, bluefin tuna, channel catfish and anglerfish): 12 source frames at 100 ms with subtle build-time procedural tail motion and a fixed head/facing. The WebP encoder may coalesce identical consecutive source frames into longer encoded frames; the decoded 1200 ms timeline is tested slot by slot, so playback is unchanged. Each species' shift is bounded to its reviewed caudal fin, so the blue tang's blue body and palette mark, the koi's patterned body, and the eight newer species' bodies stay still outside their reviewed caudal-fin bands; the anglerfish band stops before its pelvic fin. Choose any of these eleven and enable Animate aquarium to use it; hovering holds travel while the small tail loop can continue. Paused/inactive/blocked/done fish retain still/gold art. See [animation coverage](docs/animation-coverage.md) for all 25 species and why the other 14 are not in this batch. Other Free-floating species remain directional stills; Organized keeps the original travelling/turning clips. This pilot is not the original authored swim cycle, a 3D rotation, or all-species animation restoration. Its source/encoded frames are tested and an offline contact sheet reviewed; native appearance/performance remains unverified. Gold is a lightweight baked PNG effect, not a live material shader. No speed slider, collision physics, or new dependencies in the running app.
+The source sheets are **camera rotations, not fin-flapping animation**.
+Free-floating now has **12 animated species**: the eleven reviewed tail-loop fish
+plus **moray eel**, whose curled body undulates around a fixed head. Eel left/right
+loops and still/gold fallbacks use matched, mirrored side artwork so it faces its
+route correctly. The tail-loop species retain their fixed bodies and bounded
+caudal motion; the eel deliberately allows body deformation.
+
+All loops use twelve intended 100 ms slots. The WebP encoder may coalesce identical
+frames, but the decoded 1200 ms timeline is tested slot by slot. Enable Animate
+aquarium to use supported working/idle loops; hovering holds travel while the
+in-place animation can continue. Paused/inactive/blocked/done fish use still/gold
+art. **13 species remain still** while work continues toward all 25; see
+[animation coverage](docs/animation-coverage.md). Organized keeps the original
+travelling/turning clips. These are procedural 2D loops, not restored authored
+swimming or 3D rotations. Offline eel artwork is reviewed; native eel appearance
+and shared interaction acceptance remain unverified. Gold is a baked PNG effect,
+not a live material shader. No new runtime dependency or frame timer is added.
 
 ### Telemetry limitation
 
@@ -152,7 +168,7 @@ in narrow panes and reserve their measured height above the school. Roots withou
 a verified native space identity have a disabled picker.
 
 An 88 px preview shows the selected fish; **Automatic** names the species resolved
-for that family leader. Supported working/idle leaders show `Tail animation` when
+for that family leader. Supported working/idle leaders show `Swim animation` when
 Animate aquarium and Free-floating are enabled and the window is active and
 unsuspended. Other states use the appropriate still/gold portrait, labelled
 `Still portrait`. Preview playback uses the native WebP clock and does not change

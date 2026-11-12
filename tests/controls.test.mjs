@@ -523,11 +523,26 @@ test('picker preview follows the choice with honest motion labels and full gatin
   // Explicit animated species animates only under full free-floating motion gating.
   const animated = preview(new Map([...moving, [key, 'clownfish']]));
   assert.equal(animated.asset, `${'mods/aquarium/assets'}/clownfish-tail-right.webp`);
-  assert.equal(animated.note, 'Tail animation');
+  assert.equal(animated.note, 'Swim animation');
   assert.equal(animated.name, 'Clownfish');
   // The resolved asset is exactly what the shared helper yields for the leader.
   assert.equal(animated.asset,
     `mods/aquarium/assets/${model.fishAsset(leader, false, true, 't1', true, 'right', 'clownfish')}`);
+
+  // The eel body wave previews under the same helper and gating, generic note.
+  const eel = preview(new Map([...moving, [key, 'moray_eel']]));
+  assert.equal(eel.asset, 'mods/aquarium/assets/moray_eel-body-right.webp');
+  assert.equal(eel.note, 'Swim animation');
+  assert.equal(eel.asset,
+    `mods/aquarium/assets/${model.fishAsset(leader, false, true, 't1', true, 'right', 'moray_eel')}`);
+  for (const status of ['blocked', 'done']) {
+    leader.status = status;
+    const eelStill = preview(new Map([...moving, [key, 'moray_eel']]));
+    assert.equal(eelStill.asset,
+      `mods/aquarium/assets/moray_eel-inplace-${status === 'done' ? 'gold-right' : 'right'}.png`);
+    assert.equal(eelStill.note, 'Still portrait');
+  }
+  leader.status = 'working';
 
   // A still-only species stays honest even with motion on.
   const still = preview(new Map([...moving, [key, 'betta']]));

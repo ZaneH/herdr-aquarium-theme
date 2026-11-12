@@ -1,15 +1,17 @@
 # Animation coverage: all 25 species
 
-This is the per-species record for the Free-floating in-place tail loop. It covers the
-current approved algorithm only: a 96 × 96 still, a fixed head/facing, and vertical column
-shear capped at two pixels, tapering to zero at a measured caudal-fin boundary. Twelve
-source frames at 100 ms, no new clock or mask system. The WebP encoder may coalesce
-identical consecutive source frames into longer encoded frames; the decoded 1200 ms
-timeline must still match the intended frame at every 100 ms slot. The still/gold PNG
-fallback and the Organized travelling clips are unchanged.
+This is the per-species record for the Free-floating in-place loops. It covers the
+current approved algorithms only: for the 11 tail species a 96 × 96 still, a fixed
+head/facing, and vertical column shear capped at two pixels, tapering to zero at a
+measured caudal-fin boundary; for the moray eel a full body-undulation wave (its own
+profile, below). Twelve source frames at 100 ms, no new clock or mask system. The WebP
+encoder may coalesce identical consecutive source frames into longer encoded frames; the
+decoded 1200 ms timeline must still match the intended frame at every 100 ms slot. The
+tail species' still/gold PNG fallbacks and all Organized travelling clips are unchanged;
+the eel gets matched canonical side fallbacks. 12 species are now animated; 13 remain still.
 
 "Not shipped" means not added in this batch. It does not mean a species cannot be animated.
-The current algorithm cannot separate fins that share the same image columns; future
+The tail-only algorithm cannot separate fins that share the same image columns; future
 per-species fin artwork or a pivot/rotation rig is feasible work, not an impossibility.
 Native visual and performance acceptance remains open for every species, including the
 shipped ones. All 25 species have right and left stills, gold stills, swim/glide clips and
@@ -36,6 +38,28 @@ column to the left of it. Each facing is measured on its own still.
 | channel_catfish | 21/74 | forked caudal fin; barbels and adipose fin outside the band |
 | anglerfish | 20/78 | narrow caudal fin; the pelvic fin starts inside the body, so the band stops before it. The encoder coalesces duplicate source frames into 8 encoded frames, but the decoded 1200 ms timeline matches all 12 intended slots. |
 
+## Shipped body wave (1): moray_eel
+
+The eel has no caudal fin, so it uses an approved body-undulation profile instead of
+column shear: a travelling sine wave `dy = A(x,y)·sin(2πi/12 − 2πx/26)` with a 1.6 px
+amplitude, per-column vertical inverse displacement and premultiplied bilinear
+sampling (no integer shear, no mesh). Amplitude is zero inside a fixed head disc
+(r0 = 14 px around the measured eye anchor at 30,35) and ramps smoothly to full over
+the neck (r1 = 26 px); the head, eyes and mouth are RGBA byte-exact in every frame, and
+the body is deliberately allowed to deform. Both old source poses face left, so the
+canonical SIDE still `moray_eel-left.png` is the only source: the RIGHT loop and stills
+are mirrors of the LEFT ones, the travelling wave still propagates head-to-tail after
+mirroring, and the plain left-facing `moray_eel.png` pose is not reused. Because a
+travelling wave is nowhere zero at any instant, frame 0 differs from the source still
+by at most 1.6 px; the head disc is exact in all frames. Transparent-perimeter and
+alpha connectivity (16/128) are preserved; the small premultiplied edge softening is
+accepted without a full rig. Paused/blocked/done eels use matched side stills
+`moray_eel-inplace-{left,right}.png` and `moray_eel-inplace-gold-{left,right}.png`, pixel
+copies/mirrors of the same canonical sources, so the eel never shows the old facing or
+jumps between unrelated poses.
+Loops: `moray_eel-body-{left,right}.webp`. Native in-app visual acceptance stays open,
+like every species.
+
 ## Reviewed but not shipped (3)
 
 These have a discrete caudal fin and were inspected as trial loops. All three showed
@@ -47,12 +71,13 @@ visible defects. Missing source assets are not the blocker.
 | hammerhead_shark | 26/78 | caudal lobes are only a few pixels thick; a two-pixel shift is comparable to lobe thickness, producing a visible step/hook and a detached, rubbery lower lobe. | Redraw the tail with a thicker peduncle and authored flex, or a per-fin rotation rig. A mask over this art is not enough. |
 | silver_arowana | 21/78 | the band boundary crosses the trailing tips of the long dorsal and anal fins. Shear moves those fin tips with the caudal fan, leaving a visible one-to-two-pixel step at the boundary in both facings. | A tail-only mask that excludes the dorsal/anal tips, or art with a clear peduncle. Moving the edge inward would shear more body. |
 
-## Not shipped: distinct anatomy, no separable caudal fin (11)
+## Not shipped: distinct anatomy, no separable caudal fin (10)
 
-These fail the algorithm's first assumption: there is no discrete caudal fin, or a different
+These fail the tail algorithm's first assumption: there is no discrete caudal fin, or a different
 fin (pectoral, dorsal, anal, fringe) occupies the same columns. Shearing the band would
 deform that fin or the body silhouette rather than beat a tail. They need species-specific
-fin motion artwork or a fin mask/rig, not a different edge number.
+fin motion artwork or a fin mask/rig, not a different edge number. The moray eel
+moved to the shipped body wave above.
 
 | species | concrete reason |
 |---|---|
@@ -63,7 +88,6 @@ fin motion artwork or a fin mask/rig, not a different edge number.
 | manta_ray | no caudal fin; the pectoral wings are the swimming appendage, and the art is near-silhouette |
 | lionfish | giant fan pectoral fin overlaps the caudal band |
 | pufferfish_inflated | dorsal and anal fins sit inside the caudal band; two fins would deform |
-| moray_eel | continuous dorsal/anal fringe, no caudal fin, curled side view |
 | seahorse | vertical posture and prehensile tail, no caudal fin |
 | ocean_sunfish | no caudal fin; the clavus rudder is fused to the dorsal/anal fins |
 | flounder | top-down oval with a continuous fin fringe; no discrete caudal fin |

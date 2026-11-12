@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { positionAt, parkMotion, startMotion, advanceMotion } from '../mods/aquarium/motion.js';
 import { floatingGeometry, fishAsset, speciesFor } from '../mods/aquarium/model.js';
 
@@ -81,10 +82,13 @@ test('all species: family poses follow sampled travel regardless of child status
       for (const status of ['working', 'idle', 'blocked', 'done']) {
         const asset = fishAsset({ address: 'unrelated-child', status }, false, true, address, true, m.face);
         const species = speciesFor(address);
-        const expected = ['clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout', 'sockeye_salmon', 'piranha', 'swordfish', 'bluefin_tuna', 'channel_catfish', 'anglerfish'].includes(species) && ['working', 'idle'].includes(status)
-          ? `${species}-tail-${m.face}.webp`
+        const eel = species === 'moray_eel';
+        const expected = (eel || ['clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout', 'sockeye_salmon', 'piranha', 'swordfish', 'bluefin_tuna', 'channel_catfish', 'anglerfish'].includes(species)) && ['working', 'idle'].includes(status)
+          ? `${species}-${eel ? 'body' : 'tail'}-${m.face}.webp`
+          : eel ? `${species}-inplace-${status === 'done' ? `gold-${m.face}` : m.face}.png`
           : `${species}${m.face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`;
         assert.equal(asset, expected);
+        assert.ok(existsSync(new URL(`../mods/aquarium/assets/${expected}`, import.meta.url)));
       }
     }
     assert.equal(directions.size, 2);

@@ -350,7 +350,7 @@ export default class Aquarium extends View {
       // Preview mirrors the leader's own in-place art, so children show the inherited family choice.
       const previewAsset = isOpen && leader ? fishAsset(leader, !(animate && free), turning, target.address, true, "right", value) : null;
       const previewName = previewAsset ? (value ? speciesName(value) : `Automatic: ${speciesName(speciesFor(target.address))}`) : null;
-      const previewNote = previewAsset?.endsWith(".webp") ? "Tail animation" : "Still portrait";
+      const previewNote = previewAsset?.endsWith(".webp") ? "Swim animation" : "Still portrait";
       return Popover.new("aquarium-fish-picker").open(isOpen).anchor("top_left")
         .on_open_change((open, cx) => {
           // Capture identity at opening, never follow hover/focus while editing.

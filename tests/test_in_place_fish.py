@@ -1,6 +1,7 @@
 """Procedural tail pilots: fixed head/facing, no baked route, reproducible native clips."""
 import hashlib
 import importlib.util
+import math
 import struct
 import tempfile
 import unittest
@@ -121,3 +122,148 @@ class InPlaceFishTests(unittest.TestCase):
         for image, facing, species in cases:
             with self.assertRaises(ValueError):
                 prepare.tail_frames(image, facing, species)
+
+
+EEL_EYE = (28, 31, 33, 37)  # x0,x1,y0,y1 measured on moray_eel-left.png
+EEL_NEW_ASSETS = ('moray_eel-body-left.webp', 'moray_eel-body-right.webp',
+                  'moray_eel-inplace-left.png', 'moray_eel-inplace-right.png',
+                  'moray_eel-inplace-gold-left.png', 'moray_eel-inplace-gold-right.png')
+
+
+def alpha_components(image, thresh):
+    """4-connected component count of alpha >= thresh."""
+    px = image.getchannel('A').load()
+    seen = [[False] * 96 for _ in range(96)]
+    count = 0
+    for y in range(96):
+        for x in range(96):
+            if px[x, y] >= thresh and not seen[y][x]:
+                count += 1
+                stack = [(x, y)]
+                seen[y][x] = True
+                while stack:
+                    cx, cy = stack.pop()
+                    for nx, ny in ((cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)):
+                        if 0 <= nx < 96 and 0 <= ny < 96 and not seen[ny][nx] and px[nx, ny] >= thresh:
+                            seen[ny][nx] = True
+                            stack.append((nx, ny))
+    return count
+
+
+def changed_opaque_pixels(frame, source):
+    return sum(1 for y in range(96) for x in range(96)
+               if source.load()[x, y][3] and frame.load()[x, y] != source.load()[x, y])
+
+
+class EelBodyWaveTests(unittest.TestCase):
+    """Moray eel body wave: separate profile, the 11 tail gates stay as they are."""
+
+    def test_left_frames_match_approved_profile(self):
+        with self.assertRaises(ValueError):
+            prepare.body_wave_frames(Image.new('RGBA', (95, 96)))
+        path = ROOT / 'mods/aquarium/assets/moray_eel-left.png'
+        before = path.read_bytes()
+        with Image.open(path) as handle:
+            source = handle.convert('RGBA')
+            frames = prepare.body_wave_frames(source)
+            self.assertEqual(len(frames), 12)
+            # Field period is 12 slots: rendering slot 12 wraps to frame 0.
+            self.assertEqual(prepare.body_wave_frames(source, 13)[12], frames[0])
+            # Max displacement is the 1.6 px amplitude everywhere.
+            for x in range(96):
+                for y in range(96):
+                    self.assertLessEqual(prepare.eel_amplitude(x, y), 1.6 + 1e-9)
+            # Head disc (eye box inside it) stays RGBA byte-exact in all frames.
+            anchor, r0 = prepare.EEL['anchor'], prepare.EEL['r0']
+            for frame in frames:
+                pixels, sp = frame.load(), source.load()
+                for y in range(96):
+                    for x in range(96):
+                        if math.hypot(x - anchor[0], y - anchor[1]) <= r0:
+                            self.assertEqual(pixels[x, y], sp[x, y])
+                for x in range(EEL_EYE[0], EEL_EYE[1] + 1):
+                    for y in range(EEL_EYE[2], EEL_EYE[3] + 1):
+                        self.assertEqual(pixels[x, y], sp[x, y])
+                for perimeter in [(0, 0, 96, 1), (0, 95, 96, 96), (0, 0, 1, 96), (95, 0, 96, 96)]:
+                    self.assertIsNone(frame.getchannel('A').crop(perimeter).getbbox())
+            # Body really deforms: frame 0 differs from the still (travelling
+            # wave), frames 1-11 move >= 200 opaque pixels, but the fixed head
+            # rules out any rigid whole-image translation.
+            changed = [changed_opaque_pixels(frame, source) for frame in frames]
+            self.assertGreater(changed[0], 0)
+            self.assertGreaterEqual(min(changed[1:]), 200)
+            self.assertGreaterEqual(len({frame.tobytes() for frame in frames}), 8)
+            # Connectivity is preserved at the meaningful alpha thresholds.
+            for thresh in (16, 128):
+                expected = alpha_components(source, thresh)
+                for frame in frames:
+                    self.assertEqual(alpha_components(frame, thresh), expected)
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_committed_eel_assets_are_reproducible_and_timelines_match(self):
+        originals = sorted((ROOT / 'mods/aquarium/assets').glob('moray_eel*.png')) + \
+            sorted((ROOT / 'mods/aquarium/assets').glob('moray_eel*.webp'))
+        hashes = {p: hashlib.sha256(p.read_bytes()).digest() for p in originals
+                  if p.name not in EEL_NEW_ASSETS}
+        with tempfile.TemporaryDirectory() as temp:
+            prepare.build(temp)
+            for name in EEL_NEW_ASSETS:
+                generated = Path(temp) / name
+                committed = ROOT / 'mods/aquarium/assets' / name
+                self.assertEqual(generated.read_bytes(), committed.read_bytes(), name)
+            for facing in ('left', 'right'):
+                clip_path = Path(temp) / f'moray_eel-body-{facing}.webp'
+                with Image.open(ROOT / 'mods/aquarium/assets/moray_eel-left.png') as src_handle:
+                    source = src_handle.convert('RGBA')
+                    mirrored = source.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+                    intended = prepare.body_wave_frames(source)
+                    if facing == 'right':
+                        intended = [frame.transpose(Image.Transpose.FLIP_LEFT_RIGHT) for frame in intended]
+                    durations = frame_durations(clip_path)
+                    with Image.open(clip_path) as clip:
+                        self.assertTrue(clip.is_animated)
+                        self.assertEqual(clip.size, (96, 96))
+                        self.assertEqual(clip.info['loop'], 0)
+                        # The encoder may coalesce identical consecutive frames;
+                        # the decoded 12 x 100 ms timeline must match every slot.
+                        self.assertEqual(sum(durations), 1200)
+                        self.assertTrue(all(d > 0 and d % 100 == 0 for d in durations))
+                        slot = 0
+                        for i, duration in enumerate(durations):
+                            clip.seek(i)
+                            frame = clip.convert('RGBA')
+                            for _ in range(duration // 100):
+                                self.assertTrue(composited_equal(frame, intended[slot]),
+                                                f'{facing} slot {slot}')
+                                slot += 1
+                        self.assertEqual(slot, 12)
+                    # RIGHT is the mirror of LEFT: the head anchor sits at x=65
+                    # and its disc stays byte-exact against the mirrored source.
+                    if facing == 'right':
+                        anchor, r0 = prepare.EEL['anchor'], prepare.EEL['r0']
+                        for frame in intended:
+                            pixels, sp = frame.load(), mirrored.load()
+                            for y in range(96):
+                                for x in range(96):
+                                    if math.hypot(x - (95 - anchor[0]), y - anchor[1]) <= r0:
+                                        self.assertEqual(pixels[x, y], sp[x, y])
+        self.assertEqual(hashes, {p: hashlib.sha256(p.read_bytes()).digest() for p in hashes})
+
+    def test_inplace_stills_and_golds_are_matched_mirrors(self):
+        assets = ROOT / 'mods/aquarium/assets'
+        flip = Image.Transpose.FLIP_LEFT_RIGHT
+        with Image.open(assets / 'moray_eel-left.png') as normal, \
+                Image.open(assets / 'moray_eel-left-gold.png') as gold:
+            normal, gold = normal.convert('RGBA'), gold.convert('RGBA')
+            with Image.open(assets / 'moray_eel-inplace-left.png') as left:
+                self.assertEqual(left.convert('RGBA').tobytes(), normal.tobytes())
+            with Image.open(assets / 'moray_eel-inplace-right.png') as right:
+                self.assertEqual(right.convert('RGBA').tobytes(), normal.transpose(flip).tobytes())
+            with Image.open(assets / 'moray_eel-inplace-gold-left.png') as left_gold:
+                self.assertEqual(left_gold.convert('RGBA').tobytes(), gold.tobytes())
+            with Image.open(assets / 'moray_eel-inplace-gold-right.png') as right_gold:
+                self.assertEqual(right_gold.convert('RGBA').tobytes(), gold.transpose(flip).tobytes())
+            # Gold keeps the normal pose/silhouette on both sides.
+            self.assertEqual(gold.getchannel('A').tobytes(), normal.getchannel('A').tobytes())
+            for thresh in (16, 128):
+                self.assertEqual(alpha_components(gold, thresh), alpha_components(normal, thresh))

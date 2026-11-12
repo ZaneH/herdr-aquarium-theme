@@ -110,6 +110,23 @@ test('sub-agents form families through real parent chains, regardless of input o
   assert.equal(detailsFor(child, { parent: 't1' }).includes('Parent: t1'), true);
 });
 
+test('moray eel: floating body wave from mirrored canonical side art, stills matched', () => {
+  for (const face of ['left', 'right']) for (const turning of [true, false]) {
+    for (const status of ['working', 'idle', 'blocked', 'done', 'unknown']) for (const paused of [true, false]) {
+      const asset = fishAsset({ address: 'child', status }, paused, turning, 'leader', true, face, 'moray_eel');
+      const active = !paused && ['working', 'idle'].includes(status);
+      assert.equal(asset, active ? `moray_eel-body-${face}.webp`
+        : `moray_eel-inplace-${status === 'done' ? `gold-${face}` : face}.png`);
+      assert.ok(existsSync(new URL(`../mods/aquarium/assets/${asset}`, import.meta.url)));
+    }
+  }
+  // Organized travelling clips are untouched for the eel.
+  for (const turning of [true, false]) for (const paused of [true, false]) {
+    assert.equal(fishAsset({ address: 'child', status: 'working' }, paused, turning, 'leader', false, 'left', 'moray_eel'),
+      paused ? 'moray_eel.png' : `moray_eel-${turning ? 'swim' : 'glide'}.webp`);
+  }
+});
+
 test('missing parents and cyclic parent records never invent a family or lose fish', () => {
   const school = ['t1', 't2', 'remote/t1'].map(address => ({ address }));
   for (const terminals of [[], [{ address: 't1', parent: 'missing/t1' }], [

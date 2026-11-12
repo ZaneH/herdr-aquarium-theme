@@ -126,7 +126,7 @@ export function speciesName(species) {
   return species.split("_").map(word => word[0].toUpperCase() + word.slice(1)).join(" ");
 }
 
-// Reviewed in-place tail loops: conventional side views whose caudal fin is
+// Reviewed in-place loops: conventional side views whose caudal fin is
 // separate from the body. Expand only after per-species anatomy/facing review.
 const IN_PLACE_TAIL = new Set(["clownfish", "blue_tang", "koi", "largemouth_bass", "rainbow_trout", "sockeye_salmon", "piranha", "swordfish", "bluefin_tuna", "channel_catfish", "anglerfish"]);
 
@@ -134,8 +134,15 @@ export function fishAsset(agent, paused, turning, speciesAddress = agent.address
   const species = savedSpecies(choice) || speciesFor(speciesAddress);
   if (floating) {
     // Fixed-facing frames can loop at any phase without competing with waypoint direction.
-    if (IN_PLACE_TAIL.has(species) && !paused && (agent.status === "working" || agent.status === "idle")) {
-      return `${species}-tail-${facing === "left" ? "left" : "right"}.webp`;
+    // The eel deforms its whole body (no caudal fin) and comes from mirrored
+    // canonical side art, so its stills use the -inplace stem, never the old
+    // plain (left-facing) pose.
+    const animation = species === "moray_eel" ? "body" : IN_PLACE_TAIL.has(species) ? "tail" : null;
+    if (animation && !paused && (agent.status === "working" || agent.status === "idle")) {
+      return `${species}-${animation}-${facing === "left" ? "left" : "right"}.webp`;
+    }
+    if (species === "moray_eel") {
+      return `${species}-inplace-${agent.status === "done" ? "gold-" : ""}${facing === "left" ? "left" : "right"}.png`;
     }
     return `${species}${facing === "left" ? "-left" : ""}${agent.status === "done" ? "-gold" : ""}.png`;
   }
