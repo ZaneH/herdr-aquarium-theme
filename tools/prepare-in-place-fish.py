@@ -18,8 +18,11 @@ FRAME_COUNT = 12
 # Clownfish art has its tail across the whole rear half. Blue tang is a
 # conventional side view whose separate yellow fin is only about 24 columns
 # wide; shearing its blue body would deform the palette mark and outline.
+# Koi is also a clean side view: its forked caudal fin starts 22 columns from
+# the rear edge, and the pelvic/anal fins beside it stay in the fixed body.
 TAIL_EDGE = {'clownfish': {'right': 48, 'left': 47},
-             'blue_tang': {'right': 24, 'left': 71}}
+             'blue_tang': {'right': 24, 'left': 71},
+             'koi': {'right': 22, 'left': 73}}
 
 
 def tail_frames(source, facing, species='clownfish'):

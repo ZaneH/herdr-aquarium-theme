@@ -81,7 +81,7 @@ test('all species: family poses follow sampled travel regardless of child status
       for (const status of ['working', 'idle', 'blocked', 'done']) {
         const asset = fishAsset({ address: 'unrelated-child', status }, false, true, address, true, m.face);
         const species = speciesFor(address);
-        const expected = ['clownfish', 'blue_tang'].includes(species) && ['working', 'idle'].includes(status)
+        const expected = ['clownfish', 'blue_tang', 'koi'].includes(species) && ['working', 'idle'].includes(status)
           ? `${species}-tail-${m.face}.webp`
           : `${species}${m.face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`;
         assert.equal(asset, expected);
