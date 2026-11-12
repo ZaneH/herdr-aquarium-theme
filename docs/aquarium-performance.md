@@ -132,6 +132,56 @@ paint CPU/GPU and decoded residency require an authorized isolated renderer
 with real counters; paused/hidden live work also remains unmeasured.
 
 
+## Bounded feed comparison mode (source-only, current source)
+
+Measured 2026-11-12, repository revision `1d74af02f8240a317921b573dd5a279771f6f123`.
+Source SHA-256: `main.js` `a36651e1f97119e5b48adb4348f8ea496d3628151caa942af4c88af44e007662`,
+`model.js` `97c4413ab2aaa4036cde4005ff1bb3217f486f26eb6d7e165c59aace7f78e70e`,
+`motion.js` `3dbe6bb4e8e848de75dfcd75611d1c39685688be53870d827cd9668777fba519`,
+`presentation.js` `c82ccb5269aee737290c4144ee080c076de5261b92e9d1b5996eb689afa16b60`.
+
+```sh
+node tools/benchmark-aquarium.mjs --self-check
+node tools/benchmark-aquarium.mjs --feed > /tmp/aquarium-reports/aquarium-benchmark-feed-2026-11-12.jsonl
+```
+
+The historical benchmark never drops food, so it cannot describe the feeding
+halo shipped at `564508b`. The new `--feed` flag runs the same synthetic VM
+fixture for ordinary flat free-floating scenes of 2, 5 and 10 fish and
+compares a **no-food baseline render** against the **same fixture after an
+actual `dropFood()` call**. The label is therefore food+feedback (pellet +
+feeding halo + feeding-goal motion descriptions) **versus no food** — not
+halo-only, and not native CPU/FPS/GPU. Samples use the existing conventions:
+7 repeats of 100 calls, 30 warmup renders, source hashes and revision in the
+metadata line; the normal 36-combination matrix is unchanged and `--feed`
+runs only these three comparisons.
+
+The mode asserts, per count: pellet and halo (`aquarium-food`,
+`aquarium-food-halo` descriptions) exist only while food is active — absent in
+the baseline, present after `dropFood`, gone after the ten-second expiry
+dispatches and gone after suspension clears live food; the queue gains
+**exactly one** food expiry task over the original motion/shimmer tasks
+(baseline 1/2/3 tasks for 2/5/10 fish become 2/3/4), repeated food renders add
+no per-frame timer, and expiry and suspension each cancel the food task from
+the queue; all samples are finite.
+
+Medians in milliseconds per call from one ordered baseline-then-food run
+(source-description differences, not a statistically controlled cost estimate):
+
+| Fish | Baseline nodes | Food nodes | Baseline render | Food+feedback render | Median delta |
+|---:|---:|---:|---:|---:|---:|
+|2|83|85|0.06307|0.06287|-0.00020|
+|5|115|117|0.08059|0.07841|-0.00218|
+|10|167|169|0.12509|0.11566|-0.00942|
+
+The food subtree adds two element descriptions per scene. The negative deltas
+do not establish a speedup or zero cost: fixed ordering, VM warmup and timing
+variation can affect these small samples. Repeated counterbalanced runs would
+be needed for a reliable source-level cost comparison. This establishes
+**neither native gain nor native cost** — halo animation, paint and any
+FPS/CPU effect of feeding remain unmeasured. The full JSONL
+with all raw samples: `/tmp/aquarium-reports/aquarium-benchmark-feed-2026-11-12.jsonl`.
+
 ## Actual native process evidence: synthetic 250, enabled versus paused
 
 Measured source commit: **`5a3cf635808f0e6c0cee56d64ee34c58a6276fe7`**.

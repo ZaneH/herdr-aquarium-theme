@@ -105,8 +105,57 @@ if (process.argv.includes('--self-check')) {
   process.exit(0);
 }
 const repeats = 7, iterations = 100, warmup = 30;
+const measure = fn => Array.from({ length: repeats }, () => { const start = performance.now(); for (let i = 0; i < iterations; i++) fn(); return (performance.now() - start) / iterations; });
+const describeIds = tree => { const ids = new Set(); (function walk(node) { if (!node || typeof node !== 'object') return;
+  for (const [key, args] of node.calls ?? []) if (key === 'id') ids.add(String(args[0]));
+  for (const child of node.items ?? []) walk(child); })(tree); return ids; };
+const benchmarkMetadata = (scope, mode) => ({ date: new Date().toISOString(), node: process.version, v8: process.versions.v8, os: `${platform()} ${release()}`, cpu: cpus()[0].model, cores: cpus().length, revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: new URL('../', import.meta.url), encoding: 'utf8' }).trim(), hashes, repeats, iterations, warmup, size: '900x500', units: 'milliseconds per call', ...(mode ? { mode } : {}), scope });
 const hashes = Object.fromEntries(['main', 'model', 'motion', 'presentation'].map(name => [name, createHash('sha256').update(readFileSync(new URL(`../mods/aquarium/${name}.js`, import.meta.url))).digest('hex')]));
-console.log(JSON.stringify({ metadata: { date: new Date().toISOString(), node: process.version, v8: process.versions.v8, os: `${platform()} ${release()}`, cpu: cpus()[0].model, cores: cpus().length, revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: new URL('../', import.meta.url), encoding: 'utf8' }).trim(), hashes, repeats, iterations, warmup, size: '900x500', units: 'milliseconds per call', scope: 'Node source descriptions with proxy builders; scheduler samples include synthetic queue selection plus dispatched callbacks (including early shimmer expiry); no native materialization, layout, image decode or paint' } }));
+// Bounded feed comparison: same synthetic fixture, no-food render versus actual dropFood-driven
+// food pellet + feeding halo + goal-directed motion descriptions. Source-only, never native.
+if (process.argv.includes('--feed')) {
+  console.log(JSON.stringify({ metadata: benchmarkMetadata('Node source descriptions with proxy builders; feed mode compares a no-food baseline render against the same fixture after dropFood, so the delta is the food pellet + feeding halo + feeding-goal motion descriptions only; no native materialization, layout, paint, CPU, GPU or FPS is measured', 'feed: food+feedback versus no food') }));
+  for (const count of [2, 5, 10]) {
+    const f = fixture(count, false, true); // Ordinary flat free-floating scene.
+    for (let i = 0; i < warmup; i++) f.render();
+    const baseline = f.render();
+    const baselineIds = describeIds(baseline.tree);
+    assert.ok(!baselineIds.has('aquarium-food') && !baselineIds.has('aquarium-food-halo'), 'baseline must not render food or halo');
+    const baselineQueue = f.pending.size;
+    const baselineRender = measure(() => f.render());
+    f.view.dropFood(f.cx);
+    assert.ok(f.view.food, 'dropFood must place one pellet');
+    assert.equal(f.pending.size, baselineQueue + 1, 'feeding must add exactly one expiry task, no per-frame timer');
+    assert.ok(f.pending.has(f.view.food.task), 'the single added task must be the food expiry');
+    for (let i = 0; i < 3; i++) f.render();
+    assert.equal(f.pending.size, baselineQueue + 1, 'repeated food renders must not add timers');
+    for (let i = 0; i < warmup; i++) f.render();
+    const food = f.render();
+    const foodIds = describeIds(food.tree);
+    assert.ok(foodIds.has('aquarium-food') && foodIds.has('aquarium-food-halo'), 'feeding render must contain pellet and halo');
+    const foodTask = f.view.food.task;
+    const foodRender = measure(() => f.render());
+    let ticks = 0;
+    while (f.view.food) assert.ok(f.tick() && ++ticks < 2000, 'food must expire by dispatching its single timer');
+    assert.ok(!f.pending.has(foodTask), 'food expiry must remove its task from the queue');
+    const expiredIds = describeIds(f.render().tree);
+    assert.ok(!expiredIds.has('aquarium-food') && !expiredIds.has('aquarium-food-halo'), 'expiry must clean up pellet and halo');
+    f.view.dropFood(f.cx);
+    const secondTask = f.view.food.task;
+    assert.ok(f.view.food && f.pending.has(secondTask), 'a second pellet must re-arm one expiry');
+    f.view.suspended = true; // Pause/suspension must clear live food without waiting for expiry.
+    f.render();
+    assert.ok(!f.view.food && !f.pending.has(secondTask), 'suspension must cancel food and its task');
+    const pausedIds = describeIds(f.render().tree);
+    assert.ok(!pausedIds.has('aquarium-food') && !pausedIds.has('aquarium-food-halo'), 'suspension must remove pellet and halo');
+    f.view.stopMotion();
+    for (const samples of [baselineRender, foodRender]) for (const sample of samples) assert.ok(Number.isFinite(sample), 'all samples must be finite');
+    const med = a => a.slice().sort((x, y) => x - y)[a.length >> 1];
+    console.log(JSON.stringify({ mode: 'feed', count, comparison: 'dropFood-driven food+feedback render versus no-food baseline in the same source fixture; source descriptions only, not native halo/CPU/FPS/GPU', baselineNodes: baseline.nodes, foodNodes: food.nodes, baselineQueue, queueWithFood: baselineQueue + 1, baselineRender, foodRender, baselineMedian: med(baselineRender), foodMedian: med(foodRender), renderDeltaMedian: med(foodRender) - med(baselineRender) }));
+  }
+  process.exit(0);
+}
+console.log(JSON.stringify({ metadata: benchmarkMetadata('Node source descriptions with proxy builders; scheduler samples include synthetic queue selection plus dispatched callbacks (including early shimmer expiry); no native materialization, layout, image decode or paint') }));
 for (const count of [0, 2, 5, 10, 100, 250]) for (const shape of ['flat', 'nested', 'hidden']) for (const free of [false, true]) {
   const f = fixture(count, shape !== 'flat', free, shape === 'hidden');
   const initial = f.render();
@@ -118,7 +167,6 @@ for (const count of [0, 2, 5, 10, 100, 250]) for (const shape of ['flat', 'neste
   visit(initial.tree);
   assert.equal(new Set(fishIds).size, count, `${shape}: discovery must retain requested fish count`);
   for (let i = 0; i < warmup; i++) f.render();
-  const measure = fn => Array.from({ length: repeats }, () => { const start = performance.now(); for (let i = 0; i < iterations; i++) fn(); return (performance.now() - start) / iterations; });
   const render = measure(() => f.render());
   const discovered = model.schoolAgents(f.listed, f.terminals);
   const discovery = measure(() => model.schoolAgents(f.listed, f.terminals));
