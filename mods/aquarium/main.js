@@ -3,7 +3,7 @@ import { h_flex, v_flex, Button, Switch, Radio, RadioGroup, Popover } from "gpui
 import { agents, terminals, spaces, theme, run, shared, setShared, props, focused, nextCommand, window as appWindow } from "herdr";
 import { parkMotion, startMotion, advanceMotion } from "./motion.js";
 import { fishPresentation, familyNeedsAttention } from "./presentation.js";
-import { SPECIES, familyChoiceKey, savedSpecies, speciesName, detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
+import { SPECIES, familyChoiceKey, savedSpecies, speciesName, speciesFor, detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
 
 const ART = "mods/aquarium/assets";
 // Dark lettering sits directly on the bright habitat, without label cards.
@@ -332,6 +332,10 @@ export default class Aquarium extends View {
       const pageCount = Math.max(1, Math.ceil(allChoices.length / pageRows));
       const page = Math.min(Math.max(0, this.pickerPage || 0), pageCount - 1);
       const rows = isOpen ? allChoices.slice(page * pageRows, page * pageRows + pageRows) : [];
+      // Preview mirrors the leader's own in-place art, so children show the inherited family choice.
+      const previewAsset = isOpen && leader ? fishAsset(leader, !(animate && free), turning, target.address, true, "right", value) : null;
+      const previewName = previewAsset ? (value ? speciesName(value) : `Automatic: ${speciesName(speciesFor(target.address))}`) : null;
+      const previewNote = previewAsset?.endsWith(".webp") ? "Tail animation" : "Still portrait";
       return Popover.new("aquarium-fish-picker").open(isOpen).anchor("top_left")
         .on_open_change((open, cx) => {
           // Capture identity at opening, never follow hover/focus while editing.
@@ -347,6 +351,11 @@ export default class Aquarium extends View {
           .max_h(Math.max(0, Math.min(420, window.viewport_size().height - 24))).overflow_y_scrollbar()
           .p(12).gap(6).bg(t.surface).text_color(t.foreground).rounded(8)
           .child(div().flex_none().child(`Fish for ${isOpen ? target.title : leader?.title || leader?.address || "no family"}`))
+          .when(Boolean(previewAsset), el => el.child(h_flex().id("aquarium-fish-preview").flex_none().gap(10).items_center()
+            .child(image(`${ART}/${previewAsset}`).id("aquarium-fish-preview-art").size(88).flex_none())
+            .child(v_flex().flex_1().min_w(0).gap(2)
+              .child(div().text_size(12).font_semibold().truncate().child(previewName))
+              .child(div().text_size(11).text_color(t.muted).child(previewNote)))))
           // Nonshrinking plain wrapper: a bounded column collapses shrinkable children
           // instead of overflowing, and a bare RadioGroup cannot carry flex_none.
           .child(v_flex().flex_none()

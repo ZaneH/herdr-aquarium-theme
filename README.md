@@ -141,6 +141,14 @@ status semantics are unchanged. Opening holds that family's drift until closed,
 and moving the pointer elsewhere cannot redirect an open picker. Controls wrap
 in narrow panes and reserve their measured height above the school. Roots without
 a verified native space identity have a disabled picker.
+
+An 88 px preview shows the selected fish; **Automatic** names the species resolved
+for that family leader. Supported working/idle leaders show `Tail animation` when
+Animate aquarium and Free-floating are enabled and the window is active and
+unsuspended. Other states use the appropriate still/gold portrait, labelled
+`Still portrait`. Preview playback uses the native WebP clock and does not change
+the current page.
+
 Preferences use persisted `shared`/`setShared`, keyed by machine, native space ID
 and leader terminal address (not project title or folder). Automatic keeps the
 existing address-based assignment; unknown saved species fall back to it.

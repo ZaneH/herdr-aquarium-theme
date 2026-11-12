@@ -401,3 +401,85 @@ test('food feedback paints above the family that reaches the target', () => {
   assert.ok(ids.indexOf("aquarium-food-halo") > family, "halo is above the family");
   assert.ok(ids.indexOf("aquarium-food") > family, "pellet is above the family");
 });
+
+test('picker preview follows the choice with honest motion labels and full gating', () => {
+  const program = { name: 'Pi' };
+  const leader = { address: 't1', space: 's1', title: 'A', status: 'working', program };
+  const child = { ...leader, address: 'child' };
+  const data = { agents: [leader, child], terminals: [{ address: 'child', parent: 't1' }],
+    spaces: [{ id: 's1', machine: null }] };
+  const key = model.familyChoiceKey(leader, data.spaces);
+  // A child opening the picker still previews the inherited family choice.
+  const preview = (settings, viewState = {}) => {
+    const f = fixture(settings, false, undefined, { ...data, active: viewState.active ?? true });
+    Object.assign(f.view, viewState);
+    // The scheduler suite owns live motion; render needs one entry for this family.
+    f.view.motion.set('t1', { version: 1, state: { to: { x: 0, y: 0 }, face: 'right', opacity: 1, phase: 'parked', due: Infinity } });
+    f.view.pickerTarget = { address: 't1', key, title: 'A' };
+    const nodes = f.render();
+    const block = nodes.get('aquarium-fish-preview');
+    const art = nodes.get('aquarium-fish-preview-art');
+    const name = block?.childNodes[1].childNodes[0].childNodes[0];
+    const note = block?.childNodes[1].childNodes[1].childNodes[0];
+    return { f, nodes, asset: art?.values.asset, name, note };
+  };
+  const moving = [['aquarium.paused', false], ['aquarium.free', true]];
+
+  // Explicit animated species animates only under full free-floating motion gating.
+  const animated = preview(new Map([...moving, [key, 'clownfish']]));
+  assert.equal(animated.asset, `${'mods/aquarium/assets'}/clownfish-tail-right.webp`);
+  assert.equal(animated.note, 'Tail animation');
+  assert.equal(animated.name, 'Clownfish');
+  // The resolved asset is exactly what the shared helper yields for the leader.
+  assert.equal(animated.asset,
+    `mods/aquarium/assets/${model.fishAsset(leader, false, true, 't1', true, 'right', 'clownfish')}`);
+
+  // A still-only species stays honest even with motion on.
+  const still = preview(new Map([...moving, [key, 'betta']]));
+  assert.ok(still.asset.endsWith('/betta.png'), still.asset);
+  assert.equal(still.note, 'Still portrait');
+  assert.equal(still.name, 'Betta');
+
+  // Automatic resolves through the family leader's address, not the opener's.
+  const automatic = preview(new Map(moving));
+  assert.equal(automatic.name, `Automatic: ${model.speciesName(model.speciesFor('t1'))}`);
+  assert.equal(automatic.asset,
+    `mods/aquarium/assets/${model.fishAsset(leader, false, true, 't1', true, 'right', null)}`);
+
+  // Preview preserves the leader's blocked/finished presentation, including gold.
+  for (const status of ['blocked', 'done']) {
+    leader.status = status;
+    const gate = preview(new Map([...moving, [key, 'clownfish']]));
+    assert.equal(gate.asset, `mods/aquarium/assets/clownfish${status === 'done' ? '-gold' : ''}.png`);
+    assert.equal(gate.note, 'Still portrait');
+  }
+  leader.status = 'working';
+
+  // Animate off, suspended, inactive window, and Organized mode keep the preview still.
+  const paused = preview(new Map([['aquarium.free', true], [key, 'clownfish']]));
+  assert.equal(paused.asset, 'mods/aquarium/assets/clownfish.png');
+  assert.equal(paused.note, 'Still portrait');
+  for (const viewState of [{ suspended: true }, { active: false }]) {
+    // Suspension and window inactivity close the picker outright: no preview element survives.
+    const gate = preview(new Map([...moving, [key, 'clownfish']]), viewState);
+    assert.ok(!gate.nodes.has('aquarium-fish-preview'), 'gated picker builds no preview');
+    assert.equal(gate.f.view.pickerTarget, null);
+  }
+  const organized = preview(new Map([['aquarium.paused', false], ['aquarium.free', false], [key, 'clownfish']]));
+  assert.ok(organized.asset.endsWith('.png'), 'no travelling Organized clip in the preview');
+  assert.equal(organized.note, 'Still portrait');
+
+  // A closed picker builds no preview element at all: no art, no animation clock.
+  const closed = fixture(new Map([['aquarium.free', false]]), false, undefined, data);
+  const closedNodes = closed.render();
+  assert.ok(!closedNodes.has('aquarium-fish-preview'));
+  assert.ok(!closedNodes.has('aquarium-fish-preview-art'));
+  assert.equal(closedNodes.get('aquarium-fish-species').childNodes.length, 0);
+
+  // Selecting a radio updates the preview on the next render, not only the tank.
+  const fresh = preview(new Map([...moving, [key, 'betta']]));
+  fresh.nodes.get('aquarium-fish-choice-clownfish').values.on_change(true);
+  const after = fresh.f.render();
+  assert.equal(after.get('aquarium-fish-preview-art').values.asset, 'mods/aquarium/assets/clownfish-tail-right.webp');
+  assert.equal(fresh.f.view.pickerPage ?? 0, 0, 'preview never moves the page');
+});
