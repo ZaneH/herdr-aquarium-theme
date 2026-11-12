@@ -508,3 +508,183 @@ class CaudalJointTests(unittest.TestCase):
         for image, species, facing in cases:
             with self.assertRaises(ValueError):
                 prepare.caudal_frames(image, species, facing)
+
+
+LAYER_SPECIES = ('ocean_sunfish', 'pufferfish_inflated')
+LAYER_NEW_ASSETS = tuple(f'{s}-fin-{f}.webp' for s in LAYER_SPECIES for f in ('right', 'left'))
+
+
+def _layer_taps(x, y, field, theta):
+    """Sampler taps of the layered warp, mirroring the reviewed generator."""
+    ax, ay, ph, d = field
+    s = math.sin(theta - ph)
+    sx, sy = x - ax * d * s, y - ay * d * s
+    sx = min(max(sx, 0.0), prepare.SIZE - 1.0001)
+    sy = min(max(sy, 0.0), prepare.SIZE - 1.0001)
+    x0, y0 = int(sx), int(sy)
+    fx, fy = sx - x0, sy - y0
+    x1, y1 = min(x0 + 1, 95), min(y0 + 1, 95)
+    return ((x0, y0, (1 - fx) * (1 - fy)), (x1, y0, fx * (1 - fy)),
+            (x0, y1, (1 - fx) * fy), (x1, y1, fx * fy))
+
+
+class LayeredFinTests(unittest.TestCase):
+    """Layered appendage loops: only the actual fin layer is warped, the
+    protected body is restored byte-exact and never resampled."""
+
+    def _parts(self, key):
+        prof = prepare.LAYER_PROFILES[key]
+        with Image.open(ROOT / f'mods/aquarium/assets/{prof["file"]}') as handle:
+            source = handle.convert('RGBA')
+        mask = prepare._layer_mask(source, prof)
+        fields, maxd = prepare._layer_fields(source, mask, prof)
+        moving = Image.new('RGBA', (96, 96), (0, 0, 0, 0))
+        mp, sp = moving.load(), source.load()
+        for y in range(96):
+            for x in range(96):
+                if mask[y][x]:
+                    mp[x, y] = sp[x, y]
+        return prof, source, mask, fields, maxd, moving
+
+    def _appendage_rects(self, prof, mask):
+        if 'bands' in prof:  # dorsal and anal fin bands, padded clip rect
+            return [(x0 - 4, y0 - 4, x1 + 4, y1 + 4) for x0, x1, y0, y1 in prof['bands']]
+        px = [(x, y) for y in range(96) for x in range(96) if mask[y][x]]
+        return [(min(p[0] for p in px) - 4, min(p[1] for p in px) - 4,
+                 max(p[0] for p in px) + 4, max(p[1] for p in px) + 4)]
+
+    def test_layer_split_bounds_and_protected_pixels(self):
+        for key in prepare.LAYER_PROFILES:
+            prof, source, mask, fields, maxd, moving = self._parts(key)
+            sp, mp = source.load(), moving.load()
+            before = (ROOT / f'mods/aquarium/assets/{prof["file"]}').read_bytes()
+            static_px = [(x, y) for y in range(96) for x in range(96)
+                         if sp[x, y][3] > 0 and not mask[y][x]]
+            self.assertGreater(sum(1 for y in range(96) for x in range(96) if mask[y][x]), 50)
+            self.assertGreater(len(static_px), 500)
+            # no protection in the moving input; no fin left in statics
+            for x, y in static_px:
+                self.assertEqual(mp[x, y][3], 0)
+            for y in range(96):
+                for x in range(96):
+                    if mask[y][x]:
+                        self.assertEqual(mp[x, y], sp[x, y])
+            # approved displacement bounds: 1.5 px sunfish, 2.0 px puffer
+            self.assertLessEqual(maxd, (1.5 if 'bands' in prof else 2.0) + 1e-9)
+            frames = prepare.layer_frames(source, *key)
+            self.assertEqual(len(frames), 12)
+            # all protected pixels (head/body/clavus, shell/spikes/upper fin)
+            # stay RGBA byte-exact in every frame, semi-alpha included.
+            for frame in frames:
+                fp = frame.load()
+                for x, y in static_px:
+                    self.assertEqual(fp[x, y], sp[x, y])
+                for perimeter in [(0, 0, 96, 1), (0, 95, 96, 96), (0, 0, 1, 96), (95, 0, 96, 96)]:
+                    self.assertIsNone(frame.getchannel('A').crop(perimeter).getbbox())
+            # the clavus (sunfish) / upper cream fin (puffer) boxes keep
+            # meaningful fixed pixels byte-exact.
+            if 'upperfin' in prof:
+                u0, u1, u2, u3 = prof['upperfin']
+            else:  # clavus is stored (x0, y0, x1, y1)
+                u0, u2, u1, u3 = prof['clavus']
+            box_px = [(x, y) for y in range(u2, u3 + 1) for x in range(u0, u1 + 1)
+                      if sp[x, y][3] > 0]
+            self.assertGreater(len(box_px), 20)
+            for frame in frames:
+                for x, y in box_px:
+                    self.assertEqual(frame.load()[x, y], sp[x, y])
+            # frame 0 is deliberately not the still (phase offset, documented);
+            # the field has period 12 and there are >= 5 visible states.
+            self.assertNotEqual(frames[0].tobytes(), source.tobytes())
+            self.assertEqual(prepare.layer_frames(source, *key, 13)[12], frames[0])
+            self.assertGreaterEqual(len({frame.tobytes() for frame in frames}), 5)
+            self.assertEqual((ROOT / f'mods/aquarium/assets/{prof["file"]}').read_bytes(), before)
+
+    def test_new_pixels_come_only_from_the_fin_layer_and_gain_contour(self):
+        for key in prepare.LAYER_PROFILES:
+            prof, source, mask, fields, maxd, moving = self._parts(key)
+            sp, mp = source.load(), moving.load()
+            frames = prepare.layer_frames(source, *key)
+            rects = self._appendage_rects(prof, mask)
+            gained = [0] * len(rects)
+            for i, frame in enumerate(frames):
+                theta = math.tau * i / 12
+                fp = frame.load()
+                for y in range(96):
+                    for x in range(96):
+                        if fp[x, y][3] >= 16 and sp[x, y][3] < 16:
+                            for ri, (x0, y0, x1, y1) in enumerate(rects):
+                                if x0 <= x <= x1 and y0 <= y <= y1:
+                                    gained[ri] += 1
+                                    break
+                            # provenance: every sampler tap that carries any
+                            # alpha reads the moving fin layer only, never
+                            # fixed anatomy (ghost) or source-alpha gating.
+                            f = fields[y * 96 + x]
+                            if f is not None and f[3] > 0:
+                                for tx, ty, _wt in _layer_taps(x, y, f, theta):
+                                    if not mask[ty][tx]:
+                                        self.assertEqual(mp[tx, ty][3], 0)
+            # each appendage honestly gains contour (not a checksum proxy)
+            self.assertEqual(len(gained), 2 if 'bands' in prof else 1)
+            for count in gained:
+                self.assertGreater(count, 0)
+            # dilated support: every opaque (a>=128) source pixel stays
+            # represented within 3 px in every frame.
+            src_a = source.getchannel('A').point(lambda a: 255 if a >= 128 else 0)
+            for frame in frames:
+                dilated = frame.getchannel('A').point(lambda a: 255 if a >= 16 else 0) \
+                    .filter(ImageFilter.MaxFilter(7))
+                for y in range(96):
+                    for x in range(96):
+                        if src_a.load()[x, y]:
+                            self.assertGreaterEqual(dilated.load()[x, y], 16)
+            # silhouette component parity against the source at both
+            # meaningful thresholds, honestly reported (no clamp to fake zero).
+            for thresh in (16, 128):
+                expected = alpha_components(source, thresh)
+                for frame in frames:
+                    self.assertEqual(alpha_components(frame, thresh), expected)
+
+    def test_committed_layer_assets_are_reproducible_and_timelines_match(self):
+        sources = [ROOT / f'mods/aquarium/assets/{p["file"]}' for p in prepare.LAYER_PROFILES.values()]
+        hashes = {p: hashlib.sha256(p.read_bytes()).digest() for p in sources}
+        with tempfile.TemporaryDirectory() as temp:
+            prepare.build(temp)
+            for name in LAYER_NEW_ASSETS:
+                generated = Path(temp) / name
+                committed = ROOT / 'mods/aquarium/assets' / name
+                self.assertEqual(generated.read_bytes(), committed.read_bytes(), name)
+                species, _, facing = name[:-5].partition('-fin-')
+                prof = prepare.LAYER_PROFILES[(species, facing)]
+                with Image.open(ROOT / f'mods/aquarium/assets/{prof["file"]}') as src_handle:
+                    source = src_handle.convert('RGBA')
+                    intended = prepare.layer_frames(source, species, facing)
+                durations = frame_durations(generated)
+                with Image.open(generated) as clip:
+                    self.assertTrue(clip.is_animated)
+                    self.assertEqual(clip.size, (96, 96))
+                    self.assertEqual(clip.info['loop'], 0)
+                    # encoded frames may coalesce; decoded timeline is 1200 ms
+                    # and matches every intended 100 ms slot.
+                    self.assertEqual(sum(durations), 1200)
+                    self.assertTrue(all(d > 0 and d % 100 == 0 for d in durations))
+                    slot = 0
+                    for i, duration in enumerate(durations):
+                        clip.seek(i)
+                        frame = clip.convert('RGBA')
+                        for _ in range(duration // 100):
+                            self.assertTrue(composited_equal(frame, intended[slot]),
+                                            f'{species} {facing} slot {slot}')
+                            slot += 1
+                    self.assertEqual(slot, 12)
+        self.assertEqual(hashes, {p: hashlib.sha256(p.read_bytes()).digest() for p in sources})
+
+    def test_invalid_layer_dimensions_species_and_facing_are_rejected(self):
+        cases = [(Image.new('RGBA', (10, 10)), 'ocean_sunfish', 'right'),
+                 (Image.new('RGBA', (96, 96)), 'ocean_sunfish', 'up'),
+                 (Image.new('RGBA', (96, 96)), 'flounder', 'right'),
+                 (Image.new('RGBA', (96, 96)), 'lionfish', 'left')]
+        for image, species, facing in cases:
+            with self.assertRaises(ValueError):
+                prepare.layer_frames(image, species, facing)

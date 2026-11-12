@@ -6,13 +6,15 @@ head/facing, and vertical column shear capped at two pixels, tapering to zero at
 measured caudal-fin boundary; for the moray eel a full body-undulation wave (its own
 profile, below); for the four flowing-fin species a fixed torso/head core with a
 bounded 2D fin warp (its own profile, below); for the two sharks a caudal-joint
-rotation about the measured peduncle root (its own profile, below). Twelve source frames at 100 ms, no new
-clock or mask system. The WebP encoder may coalesce identical consecutive source frames
+rotation about the measured peduncle root (its own profile, below); for the sunfish
+and inflated puffer a layered appendage split that warps only the actual fin layer
+(its own profile, below). Twelve source frames at 100 ms, no new
+runtime clock or masking view. The WebP encoder may coalesce identical consecutive source frames
 into longer encoded frames; the decoded 1200 ms timeline must still match the intended
 frame at every 100 ms slot. The tail species' still/gold PNG fallbacks and all Organized
 travelling clips are unchanged; the eel gets matched canonical side fallbacks; the fin
 species reuse their existing norm/gold stills as-is; the sharks reuse theirs too.
-18 species are now animated; 7 remain still.
+20 species are now animated; 5 remain still.
 
 "Not shipped" means not added in this batch. It does not mean a species cannot be animated.
 The tail-only algorithm cannot separate fins that share the same image columns; future
@@ -124,6 +126,43 @@ open, like every species.
 | great_white_shark | (23.5, 42.0) / (72.5, 58.5) | 0.062 / 0.085 | 8–27, 22–53 / 69–87, 47–75 |
 | hammerhead_shark | (24.0, 55.5) / (72.0, 54.0) | 0.07 / 0.072 | 3–27, 44–67 / 69–92, 40–64 |
 
+## Shipped layered fins (2): ocean_sunfish, pufferfish_inflated
+
+Both species lack a separable caudal band: the sunfish has no caudal fin at all (its
+clavus rudder is fused between the dorsal and anal fins) and the puffer's dorsal and
+anal fins sit inside the old tail band. The approved algorithm splits each source
+ONCE into a MOVING layer — only the actual appendage pixels plus their
+antialiased fringe — and a STATIC complement. Only the moving layer is warped
+(premultiplied bilinear, same sampler order as the flowing fins); every other occupied
+source pixel is restored RGBA byte-exact afterwards. The sampler can therefore never copy
+fixed anatomy into gained pixels (no ghost body), the old fin outline never stays
+frozen in the static layer, and the output is never clipped to the old source alpha,
+so the contour expands into transparent space honestly. Both loops have a phase
+offset, so frame 0 is deliberately not the source still (the same approved deviation
+as the eel and flowing fins); the protected head/body stays byte-exact in all frames.
+
+**Sunfish:** the dorsal and anal fin bands rotate coherently about measured band
+joints (tangential rotation capped at 1.5 px, dorsal/anal phase offset 1.05 rad); the
+torso, head and clavus tissue are protected and byte-exact. The fin mask is
+the genuine fin tissue inside the band rectangles and strictly outside the body —
+not a padded rectangle alone, which would wrongly claim body/clavus fringe. Two to
+three anal-root fringe pixels (inside the band, just outside the torso ellipse) wobble
+by at most 0.7 px; they stay moving to avoid a frozen seam at the junction.
+
+**Puffer:** the caudal fan wags horizontally with a 2 px amplitude and a 26 px
+wavelength, tapering to zero at the actual fan root (x = 17 right / 78 left, measured;
+the old body-junction anchor 24/71 would open a slit between tail and body, so only
+the phase reference keeps those columns). The entire upper cream fin, shell and
+spikes are static and byte-exact — only the caudal fan animates; the fan blob is the
+only opaque content at or before the fan root column, so the mask needs no further
+geometry. The moving tail may enter the formerly empty gap inside the broad upper
+fin bounding box; that is genuine tail provenance, never the upper fin moving.
+
+Loops: `<species>-fin-{right,left}.webp`. The still/gold PNG fallbacks and Organized
+travelling clips are unchanged; the earlier rejected whole-source-sampler and
+wing-rig trials for these two species are history, not production. Native in-app
+visual acceptance stays open, like every species.
+
 ## Rejected column-shear trials (1, historical)
 
 History: the sharks were first tried as column-shear tail loops and rejected
@@ -137,7 +176,7 @@ reject of that older algorithm. Missing source assets are not the blocker.
 |---|---|---|---|
 | silver_arowana | 21/78 | the band boundary crosses the trailing tips of the long dorsal and anal fins. Shear moves those fin tips with the caudal fan, leaving a visible one-to-two-pixel step at the boundary in both facings. | A tail-only mask that excludes the dorsal/anal tips, or art with a clear peduncle. Moving the edge inward would shear more body. |
 
-## Not shipped: distinct anatomy, no separable caudal fin (6)
+## Not shipped: distinct anatomy, no separable caudal fin (4)
 
 These fail the tail algorithm's first assumption: there is no discrete caudal fin, or a different
 fin (pectoral, dorsal, anal, fringe) occupies the same columns. Shearing the band would
@@ -145,15 +184,14 @@ deform that fin or the body silhouette rather than beat a tail. They need specie
 fin motion artwork or a fin mask/rig, not a different edge number. The moray eel
 moved to the shipped body wave above; betta, fancy_goldfish and freshwater_angelfish
 moved to the shipped flowing fins above; manta_ray moved to the shipped wing-flap
-profile above; the sharks moved to the shipped caudal-joint profile above.
+profile above; the sharks moved to the shipped caudal-joint profile above; the
+sunfish and puffer moved to the shipped layered profile above.
 
 | species | concrete reason |
 |---|---|
 | mandarinfish | huge pectoral fan occupies the tail columns and would shear with the tail |
 | lionfish | giant fan pectoral fin overlaps the caudal band |
-| pufferfish_inflated | dorsal and anal fins sit inside the caudal band; two fins would deform |
 | seahorse | vertical posture and prehensile tail, no caudal fin |
-| ocean_sunfish | no caudal fin; the clavus rudder is fused to the dorsal/anal fins |
 | flounder | top-down oval with a continuous fin fringe; no discrete caudal fin |
 
 ## What a future batch would need

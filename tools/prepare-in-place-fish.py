@@ -6,7 +6,7 @@ Only the output directory is written. Sources are existing CC0-derived portraits
 import math
 import sys
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / 'mods/aquarium/assets'
@@ -395,9 +395,168 @@ def fin_frames(source, species, facing, count=FRAME_COUNT):
     return frames
 
 
+# Layered appendage loops (ocean_sunfish, pufferfish_inflated): the actual
+# appendage pixels are split from the source once and ONLY that moving layer
+# is warped; every other occupied source pixel is restored RGBA byte-exact afterwards,
+# so fixed anatomy is never resampled, never leaks into gained contour and
+# leaves no frozen fin outline. Profiles copy the reviewed finlayer concept.
+# 'rootx'/'fanmax'/'fanmin' anchor the puffer at the actual fan root (17/78),
+# not the old body junction (24/71), so the tail never opens a slit; 'base'
+# is only the phase reference. Because the wave has a phase offset, frame 0
+# is deliberately not the source still (same approved deviation as the eel).
+LAYER_PROFILES = {
+    ('ocean_sunfish', 'right'): dict(
+        file='ocean_sunfish.png',
+        torso=(49, 46, 37, 19), head=(74, 45, 12),
+        bands=[(30, 48, 12, 31), (30, 48, 65, 84)],
+        joints=[(38, 33), (38, 67)], ang=0.082, off=1.05,
+        clavus=(11, 32, 29, 67)),
+    ('ocean_sunfish', 'left'): dict(
+        file='ocean_sunfish-left.png',
+        torso=(47, 46, 37, 19), head=(22, 45, 12),
+        bands=[(47, 65, 12, 31), (47, 65, 65, 84)],
+        joints=[(57, 33), (56, 67)], ang=0.082, off=1.05,
+        clavus=(67, 32, 85, 67)),
+    ('pufferfish_inflated', 'right'): dict(
+        file='pufferfish_inflated.png',
+        poly=[(7, 32), (17, 32), (24, 43), (25, 62), (7, 62)],
+        fanmax=17, rootx=17, base=24, amp=2.0, waglen=26.0,
+        upperfin=(17, 36, 23, 37)),
+    ('pufferfish_inflated', 'left'): dict(
+        file='pufferfish_inflated-left.png',
+        poly=[(88, 32), (78, 32), (71, 43), (70, 62), (88, 62)],
+        fanmin=78, rootx=78, base=71, amp=2.0, waglen=26.0,
+        upperfin=(59, 78, 23, 37)),
+}
+
+
+def _padded_region(boxes_or_poly):
+    m = Image.new('L', (SIZE, SIZE), 0)
+    d = ImageDraw.Draw(m)
+    if len(boxes_or_poly[0]) == 2:  # polygon
+        d.polygon(boxes_or_poly, fill=255)
+    else:  # band rects, padded 3 px like the reviewed concept
+        for x0, x1, y0, y1 in boxes_or_poly:
+            d.rectangle([x0 - 3, y0 - 3, x1 + 3, y1 + 3], fill=255)
+    return m.filter(ImageFilter.MaxFilter(7)).load()
+
+
+def _layer_mask(source, prof):
+    """Moving mask = the actual appendage pixels + their AA fringe only.
+    Sunfish: fin tissue inside the band rects, strictly outside the body
+    (the pad alone would wrongly claim body/clavus fringe). Puffer: the fan
+    is the only opaque content at/before the fan root column."""
+    px = source.load()
+    if 'bands' in prof:
+        pad = _padded_region(prof['bands'])
+        return [[px[x, y][3] > 0 and pad[x, y] and fin_influence(x, y, prof) > 0
+                 and any(x0 <= x <= x1 and y0 <= y <= y1
+                         for x0, x1, y0, y1 in prof['bands'])
+                 for x in range(SIZE)] for y in range(SIZE)]
+    limit = prof.get('fanmax')
+    return [[px[x, y][3] > 0 and (x <= limit if limit is not None else x >= prof['fanmin'])
+             for x in range(SIZE)] for y in range(SIZE)]
+
+
+def _layer_fields(source, mask, prof):
+    """Geometric fields on the padded support; static opaque pixels get no
+    field (their warp output is transparent, restored by the static composite)."""
+    px = source.load()
+    fields = [None] * (SIZE * SIZE)
+    maxd = 0.0
+    if 'bands' in prof:  # sunfish: coherent tangential rotation per fin joint
+        pad = _padded_region(prof['bands'])
+        jd, ja, ang, off = prof['joints'][0], prof['joints'][1], prof['ang'], prof['off']
+        for y in range(SIZE):
+            for x in range(SIZE):
+                if not pad[x, y] or fin_influence(x, y, prof) <= 0:
+                    continue
+                (jx, jy), ph = (jd, 0.0) if y < 46 else (ja, off)
+                rx_, ry_ = x - jx, y - jy
+                r = math.hypot(rx_, ry_)
+                d_ = min(ang * r, 1.5) * _smoothstep(fin_influence(x, y, prof) / 3.0)
+                maxd = max(maxd, d_)
+                if r > 0:
+                    fields[y * SIZE + x] = (-ry_ / r, rx_ / r, ph, d_)
+    else:  # puffer: horizontal wag tapering to zero at the actual fan root
+        pad = _padded_region(prof['poly'])
+        for y in range(SIZE):
+            for x in range(SIZE):
+                if not pad[x, y] or (px[x, y][3] > 0 and not mask[y][x]):
+                    continue  # outside support, or protected body slice
+                d_ = prof['amp'] * _smoothstep(abs(x - prof['rootx']) / 4.0)
+                maxd = max(maxd, d_)
+                fields[y * SIZE + x] = (1.0, 0.0, math.tau * (x - prof['base']) / prof['waglen'], d_)
+    return fields, maxd
+
+
+def layer_frames(source, species, facing, count=FRAME_COUNT):
+    """Warp ONLY the moving layer (premultiplied bilinear, same sampler order
+    as the flowing fins), then restore the original protected pixels (every
+    non-moving alpha>0 pixel) on top. Source alpha identifies anatomy; it is
+    never used to clip the output, so the contour expands into transparent
+    space honestly. Max displacement: 1.5 px sunfish / 2.0 px puffer."""
+    key = (species, facing)
+    if source.size != (SIZE, SIZE) or key not in LAYER_PROFILES:
+        raise ValueError('Expected a known layer species, a 96x96 portrait and right/left facing')
+    prof = LAYER_PROFILES[key]
+    source = source.convert('RGBA')
+    px = source.load()
+    mask = _layer_mask(source, prof)
+    fields, maxd = _layer_fields(source, mask, prof)
+    assert maxd <= (1.5 if 'bands' in prof else 2.0) + 1e-9, maxd
+    moving = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
+    mp = moving.load()
+    for y in range(SIZE):
+        for x in range(SIZE):
+            if mask[y][x]:
+                mp[x, y] = px[x, y]
+    frames = []
+    for i in range(count):
+        theta = math.tau * i / FRAME_COUNT
+        frame = Image.new('RGBA', (SIZE, SIZE))
+        po = frame.load()
+        k = 0
+        for y in range(SIZE):
+            for x in range(SIZE):
+                f = fields[k]; k += 1
+                if f is None or f[3] == 0.0:
+                    po[x, y] = mp[x, y]
+                    continue
+                ax, ay, ph, d = f
+                s = math.sin(theta - ph)
+                sx, sy = x - ax * d * s, y - ay * d * s
+                sx = min(max(sx, 0.0), SIZE - 1.0001)
+                sy = min(max(sy, 0.0), SIZE - 1.0001)
+                x0, y0 = int(sx), int(sy)
+                fx, fy = sx - x0, sy - y0
+                x1, y1 = min(x0 + 1, SIZE - 1), min(y0 + 1, SIZE - 1)
+                tr = [mp[x0, y0], mp[x1, y0], mp[x0, y1], mp[x1, y1]]
+                prem = [(c[0] * c[3], c[1] * c[3], c[2] * c[3], c[3]) for c in tr]
+                wts = ((1 - fx) * (1 - fy), fx * (1 - fy), (1 - fx) * fy, fx * fy)
+                a = sum(p[3] * wt for p, wt in zip(prem, wts))
+                ai = int(round(a))
+                po[x, y] = (0, 0, 0, 0) if ai == 0 else (
+                    int(round(sum(p[0] * wt for p, wt in zip(prem, wts)) / a)),
+                    int(round(sum(p[1] * wt for p, wt in zip(prem, wts)) / a)),
+                    int(round(sum(p[2] * wt for p, wt in zip(prem, wts)) / a)), ai)
+        for y in range(SIZE):
+            for x in range(SIZE):
+                if px[x, y][3] > 0 and not mask[y][x]:
+                    po[x, y] = px[x, y]
+        frames.append(frame)
+    return frames
+
+
 def build(output):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
+    for (species, facing), prof in LAYER_PROFILES.items():
+        with Image.open(ASSETS / prof['file']) as source:
+            frames = layer_frames(source, species, facing)
+        frames[0].save(output / f'{species}-fin-{facing}.webp',
+                       save_all=True, append_images=frames[1:], duration=FRAME_MS,
+                       loop=0, lossless=True, exact=True, method=6)
     for (species, facing), prof in FIN_PROFILES.items():
         with Image.open(ASSETS / prof['file']) as source:
             frames = fin_frames(source, species, facing)
