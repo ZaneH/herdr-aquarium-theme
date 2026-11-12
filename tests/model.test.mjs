@@ -41,6 +41,21 @@ test('floating poses use explicit family heading, never an independent animation
   }
 });
 
+test('in-place clownfish pilot loops only when active and never owns facing or a travel route', () => {
+  for (const face of ['left', 'right']) for (const turning of [true, false]) {
+    for (const status of ['working', 'idle', 'blocked', 'done', 'unknown']) {
+      for (const paused of [true, false]) {
+        const asset = fishAsset({ address: 'child', status }, paused, turning, 'leader', true, face, 'clownfish');
+        const active = !paused && ['working', 'idle'].includes(status);
+        assert.equal(asset, active ? `clownfish-tail-${face}.webp`
+          : `clownfish${face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`);
+        assert.ok(existsSync(new URL(`../mods/aquarium/assets/${asset}`, import.meta.url)));
+      }
+    }
+  }
+  assert.equal(fishAsset({ address: 'child', status: 'working' }, false, true, 'leader', false, 'left', 'clownfish'), 'clownfish-swim.webp');
+});
+
 test('floating families use bounded whole-tank paths and fit children without clipping', () => {
   for (const width of [104, 240, 260, 800, 1600]) {
     for (const height of [178, 300, 800]) {

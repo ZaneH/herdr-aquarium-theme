@@ -128,7 +128,14 @@ export function speciesName(species) {
 
 export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, facing = "right", choice = null) {
   const species = savedSpecies(choice) || speciesFor(speciesAddress);
-  if (floating) return `${species}${facing === "left" ? "-left" : ""}${agent.status === "done" ? "-gold" : ""}.png`;
+  if (floating) {
+    // Fixed-facing frames can loop at any phase without competing with waypoint direction.
+    // shortcut: only clownfish has a reviewed loop; expand after per-species anatomy/facing checks.
+    if (species === "clownfish" && !paused && (agent.status === "working" || agent.status === "idle")) {
+      return `clownfish-tail-${facing === "left" ? "left" : "right"}.webp`;
+    }
+    return `${species}${facing === "left" ? "-left" : ""}${agent.status === "done" ? "-gold" : ""}.png`;
+  }
   if (agent.status === "done") return `${species}-gold.png`;
   if (paused || agent.status === "blocked") return `${species}.png`;
   return `${species}-${turning ? "swim" : "glide"}.webp`;

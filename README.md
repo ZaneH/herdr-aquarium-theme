@@ -6,7 +6,7 @@ Your coding agents, as a school of fish. Two native [Herdr GUI](https://herdr.de
 
 ![Native Herdr aquarium workspace panel](preview.png)
 
-*Fresh native workspace-panel capture with five real fish and Options closed. Agent names and both details-strip lines are privacy-blurred; native colors, fish positions, status text, and controls are retained without grading or reconstruction. The surround and headings are presentation, not app UI. The panel was temporarily 500 px tall for capture, then restored to its normal 320 px. This capture predates the subsequent removal of the navy label pills/hover rectangles.*
+*Fresh native workspace-panel capture with five real fish and Options closed. Agent names and both details-strip lines are privacy-blurred; native colors, fish positions, status text, and controls are retained without grading or reconstruction. The surround and headings are presentation, not app UI. The panel was temporarily 500 px tall for capture, then restored to its normal 320 px. This earlier capture predates label cleanup, the fish picker, attention transitions and the clownfish animation pilot.*
 
 Regenerate from the pinned sanitized input with `uv run --with pillow==11.3.0 python tools/prepare-preview.py` (build-time only). See [gallery direction and provenance](docs/gallery-direction.md).
 
@@ -31,7 +31,7 @@ Hover a fish for status and location. The details strip follows the hovered agen
 
 All **25 species** from [Polyy.AI's 2D Fish Sprites Pack](https://polyyai.itch.io/2d-fish-sprites-pack) are included. Species are deterministic by full terminal address; species can repeat.
 
-There is no tank heading or toolbar full of settings: just the layout switch and **Options ▾**. The native dropdown uses switches and radio buttons, dismisses on outside press/Escape, and keeps settings together.
+There is no tank heading or toolbar full of settings: the layout switch, stationary **Choose fish**, and **Options ▾**. The native dropdown uses switches and radio buttons, dismisses on outside press/Escape, and keeps settings together.
 
 - **Animate aquarium:** opt-in; off on a fresh installation. Turning it off stops fish, bubbles, surface waves, attention pulsing, and shimmer.
 - **Fish arrangement — Free-floating / Organized:** free-floating is the default. Families follow nearby deterministic waypoints with gentle course changes instead of a single left/right ping-pong loop. Organized preserves the original fixed lanes and 12-second routes for a more structured view.
@@ -55,7 +55,7 @@ herdr-app do aquarium.arrangement
 herdr-app do aquarium.options
 ```
 
-The source sheets are **camera rotations, not fin-flapping animation**. The result is traveling and turning fish, not simulated skeletal swimming. Gold is a lightweight baked PNG effect, not a live material shader. No speed slider, collision physics, or new dependencies in the running app.
+The source sheets are **camera rotations, not fin-flapping animation**. Free-floating now has a **clownfish-only in-place animation pilot**: 12 native WebP frames at 100 ms, with subtle build-time procedural tail motion and a fixed head/facing. Choose Clownfish and enable Animate aquarium to use it; hovering holds travel while the small tail loop can continue. Paused/inactive/blocked/done fish retain still/gold art. Other Free-floating species remain directional stills; Organized keeps the original travelling/turning clips. This pilot is not the original authored swim cycle, a 3D rotation, or all-species animation restoration. Its source/encoded frames are tested and an offline contact sheet reviewed; native appearance/performance remains unverified. Gold is a lightweight baked PNG effect, not a live material shader. No speed slider, collision physics, or new dependencies in the running app.
 
 ### Telemetry limitation
 
@@ -65,7 +65,7 @@ The installed Herdr API does **not** document cache, context, model, or thinking
 
 ## Could this use the 3D models?
 
-The creator also offers a [3D Fish Pack](https://polyyai.itch.io/3d-fish-pack): 25 textured GLB models, plus a separate low-poly download (roughly 2,200–7,700 triangles per fish, versus 51,000–55,000 in the detailed set). The listing explicitly says these are **static meshes with no rig or animation**. They would need deformation or rigging for fin/tail swimming, not just movement through the tank.
+The creator also offers a [3D Fish Pack](https://polyyai.itch.io/3d-fish-pack): 25 textured GLB models, plus a separate low-poly download (roughly 2,200–7,700 triangles per fish, versus 51,000–55,000 in the detailed set). The earlier listing described static meshes without rigs/animation; actual current downloads need rechecking before assuming either capability. This exploration is shelved while the 2D version is perfected.
 
 Herdr GUI 0.1.15's installed mod API exposes 2D GPUI elements, paths, images, and native UI animation, but no documented GLB loader, 3D scene, or custom shader entry point. HTML/web views and Node APIs are explicitly unavailable to mods. A real-time 3D version therefore needs additional host support or a separate renderer/integration; dropping Three.js into this mod will not work.
 
