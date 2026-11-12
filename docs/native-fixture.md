@@ -9,6 +9,7 @@ settings.
 node tools/prepare-native-fixture.mjs --out /tmp/aquarium-native-5
 node tools/prepare-native-fixture.mjs --out /tmp/aquarium-native-5-paused --count 5 --paused
 node tools/prepare-native-fixture.mjs --out /tmp/aquarium-native-10-food --count 10 --food
+node tools/prepare-native-fixture.mjs --out /tmp/aquarium-native-5-cycle --attention-cycle
 herdr-app check /tmp/aquarium-native-5/mods/aquarium-native-fixture
 ```
 
@@ -52,6 +53,46 @@ The shim:
 - returns the real Herdr window snapshot only. There is no `active: true`
   fallback that could make a headless check look like live animation.
 
+## Opt-in timed attention cycle (`--attention-cycle`)
+
+Only the attention layout gains the cycle. The synthetic child walks a
+deterministic four-phase sequence. Banner T+ values are the scheduled fixture
+timeline, not measured wall-clock or paint timestamps; native callbacks may run late:
+
+```text
+T+0ms     WORKING   child status "working"
+T+3000ms  BLOCKED   child status "blocked"
+T+6000ms  WORKING-2 child status "working"
+T+9000ms  BLOCKED-2 child status "blocked"
+T+9200ms  fixture-only suspension interrupts the final approach (no further timers)
+```
+
+Each phase dwells 3000 ms, far above the ~400 ms production status-transition
+target (CLI capture latency itself is unmeasured), so a capture is unlikely
+to race a transition. The wrapper renders
+` — ATTENTION CYCLE: <LABEL> PHASE <N>/4 T+<MS>MS` into the banner, so each
+capture records its own phase and timestamp. 200 ms into the final BLOCKED-2
+phase the wrapper performs the production pause path once — `this.suspended =
+true`, `this.stopMotion()`, `attentionCycle.suspend()`, callback `cx.notify()` —
+and the banner appends ` — INTERRUPTED (SUSPENDED) AT T+9200MS`, so the
+interruption is recorded with its state and time. There is no recurring frame
+loop: the wrapper schedules at most three bounded one-shot phase
+cx.timer.after callbacks plus that single 200 ms interruption callback, never
+reuses the init context (each callback receives and forwards its own cx),
+guards stale callbacks behind `this.closed`, and `close()` cancels every native
+handle plus the cycle clock (`attentionCycle.close()` drops every pending
+callback). Tests dispatch the fixture-local clock directly
+(`attentionCycle.advance(ms)`), and a generated-wrapper lifecycle test drives
+the mocked native timer callbacks with distinct per-callback contexts. All
+data, status and preference mutation stays synthetic. `fixture.json` records
+the dwell, phase labels, phase sequence length (9000 ms), interruption timer and banner
+recipes. The cycle is module state shared by every wrapper copy of one
+generated fixture: only the copy that started it closes it, so one generated
+module runs one cycle (a fresh generation or a fresh module import resets it),
+and closing a primary-layout copy never breaks the cycle. Default fixtures
+without the flag are byte-identical to before; only the new opt-in adds the
+`cycle: true` layout prop and `fixture.json` metadata.
+
 The generator refuses an existing output path and paths inside this repository
 or the default/custom live Herdr app home (`HERDR_APP_HOME`), including existing symlink aliases. A failed write removes only the newly
 created output directory.
@@ -79,6 +120,13 @@ the installed `aquarium` mod or the original layouts.
 `herdr-app check` proves that the generated description loads and eager elements
 materialize. It is not paint, animation, FPS, CPU, GPU, decoded-image residency,
 input or lifecycle evidence. A successful check does not establish native
-aquarium performance. The attention child is synthetic structure, not a real
-agent failure. The food pellet expires after ten seconds and only starts if the
-real host window is active. No fixture result should be described as telemetry.
+aquarium performance, and it does not prove that the timed attention cycle
+interpolates between phases on screen: the phase timers, status flips,
+interruption and banner timestamps are fixture source, verified only by the
+Node tests' local clock dispatch and mocked-native lifecycle test, never by
+native paint. The 200 ms final-phase interruption exercises the production
+suspend path in fixture source only, not a real pause triggered by a real
+host. The attention child is synthetic
+structure, not a real agent failure. The food pellet expires after ten seconds
+and only starts if the real host window is active. No fixture result should be
+described as telemetry.
