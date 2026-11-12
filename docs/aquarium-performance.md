@@ -149,10 +149,11 @@ off). Parent confirmed two native paused frames A/B were pixel-identical before
 the paused GO; this is a static positive control, not an FPS measurement.
 
 The shim makes shared preferences fixture-local/read-only and app commands
-no-ops. Its `realWindow() ?? { active: true }` fallback applies only to headless
-fixture checks when no window exists; native foreground was independently
-verified, and visible native fish provided a separate positive control. CLI
-checks do not establish native rendering performance.
+no-ops. Its `realWindow() ?? { active: true }` fallback lets headless checks run
+without a window snapshot; it is not proof of window activity. OS foreground
+was independently verified for the live measurements, and visibly painted fish
+provided a separate positive control. CLI checks do not establish native rendering
+performance.
 
 ### OS process results
 
@@ -237,5 +238,8 @@ Durable **local-only** artifacts under the repository's root Git directory
 
 These local artifacts are not published raw traces or private captures. This
 document records the bounded numeric findings without embedding screenshots or
-raw stack traces. The historical source-proxy table above remains useful only
+raw stack traces. Later in the pass, PID 945 exited and a new GUI host, PID 54019,
+started at 18:49:34 local time. No restart command was issued; the cause is
+unconfirmed. Both official measurements and the stack diagnostic predate that
+change and must not be attributed to the replacement process. The historical source-proxy table above remains useful only
 for its recorded source-level scope, not as a substitute for these native costs.

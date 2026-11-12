@@ -40,7 +40,7 @@ There is no tank heading or toolbar full of settings: just the layout switch and
 - **Bubbles:** two original aerator streams rise along the sides. Paused mode uses still posters.
 - **Surface waves:** a translucent surface ribbon slowly undulates across the top. Seamless fixed-size SVG tiles overscan both ends, so movement never exposes a shrinking image edge. Paused mode leaves it still.
 
-All animation frames are native GPUI/image playback—not per-frame JavaScript. One cancellable view-level timer advances free-floating waypoints and stationary turn phases; native transitions draw the intervening frames.
+The theme has no JavaScript frame loop: one cancellable view-level timer supplies waypoints and stationary turn phases to native GPUI transitions. This does not make host rendering free of script work; native profiling observes script snapshots alongside layout and paint. See [performance evidence and limits](docs/aquarium-performance.md).
 Working and idle agents move when enabled. Blocked/done family leaders stop the whole family; descendants stay with their parent while retaining their own status cues. Blocked fish appear larger/closer to the glass, gently bob in a coral halo, and say **Needs you**. Done fish turn gold and show a brief three-second sparkle when first observed entering done with motion enabled; they stay gold until Herdr marks them seen/idle. The sparkle is native opacity animation, with one timer solely to remove it.
 Preferences are shared by both modes and saved by Herdr. Motion is opt-in instead of detecting OS reduced-motion settings, which this API does not expose.
 
@@ -90,15 +90,19 @@ Then check the mod and select a layout. To update your own installation, copy th
 
 ```sh
 node --test tests/*.test.mjs
-uv run --with pillow python -m unittest discover -s tests
+uv run --with pillow==11.3.0 python -m unittest discover -s tests
 herdr-app check ~/.config/herdr-app/mods/aquarium
 herdr-app status
 herdr-app shot /tmp/aquarium.png
 ```
 
-Node tests cover species/assets, missing telemetry, completion-entry detection, parent/descendant grouping, bounded geometry, full-width waves, heading versus displacement at both speeds/turn modes, stationary turns, pause/resize clamping, late callbacks, and scheduler cancellation/cleanup. Python checks verify organized routes and angles, all 25 static directional/gold sprite sets, bubble clips/posters, and seamless SVG tile geometry. Earlier native rendering and two-agent playback checks covered the previous movement implementation; they do not certify the new waypoint scheduler. The immersive terminal and return views previously rendered without app errors. The replacement still needs complete live movement/turn/pause/navigation checks. Full keyboard, empty/crowded UI, and every live status transition still need hands-on acceptance testing. No large-school CPU/GPU/memory benchmark yet; animated images use more decoded memory than their compressed file size. Pause motion for the lightest mode. All four statuses and nested fish families also pass an isolated native render check using test fixtures; actual live blocked/done transitions and agent-spawn lifecycles still need hands-on testing.
+52 Node tests cover discovery/families, stable species and placement, heading versus displacement, geometry, navigation dispatch, native control descriptions, and scheduler cleanup. Eight Python checks cover assets, wave tiling and reproducible gallery pixels. These are not human input acceptance.
 
-The repo's runtime assets total about 15 MB; the original 49 MB pack and build dependencies are not vendored. No runtime subprocesses, network requests, web views, per-frame JavaScript, or terminal scraping.
+A [controlled live pass](docs/native-live-validation.md) displayed three genuine pane-less children and the brighter habitat. Native captures cover a five-fish workspace at Normal/Smooth and two real root species at both speeds/turn modes (136 frames at 1 Hz); no sustained backwards-facing mismatch was found on clear sampled legs. That sampling does not establish fade smoothness, frame pacing, hit comfort, keyboard behavior, every species/status, or complete lifecycle acceptance. Raw child navigation was corrected after `agent.focus` failed live: the native terminal-peek endpoint opened the correct worker, while physical Button activation remains untested.
+
+The [native performance report](docs/aquarium-performance.md) includes a synthetic 250-root stress scene: about 101% of one CPU core enabled versus 1.6% paused in sequential matched-scene runs. This is a significant unresolved cost, not a lightweight-performance acceptance claim. Full-app RSS is measured; GPU and decoded-image residency are not. One real child exit was observed after settling. Real blocked/done transitions, broader spawn/nested/parent-exit workflows, and hands-on click/keyboard acceptance remain open.
+
+The repo's runtime assets total about 15 MB; the original 49 MB pack and build dependencies are not vendored. No runtime subprocesses, network requests, web views, theme-managed per-frame callback loop, or terminal scraping.
 
 Regenerate the assets from the source pack ZIP:
 
