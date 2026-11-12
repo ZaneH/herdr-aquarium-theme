@@ -140,6 +140,33 @@ test('actual tank descriptors use static assets and omit loops when suspended or
 });
 
 
+test('fish hover callbacks ignore late exits from another fish and retain click/focus without label cards', () => {
+  const agents = ['first', 'second'].map(address => ({
+    address, status: 'working', title: address, program: { name: 'Pi', agent: true },
+  }));
+  const f = fixture(new Map([['aquarium.free', false]]), false, undefined, { agents });
+  const nodes = f.render();
+  const first = nodes.get('fish-first');
+  const second = nodes.get('fish-second');
+  first.values.on_hover(true, f.cx);
+  assert.equal(f.view.hovered, 'first');
+  second.values.on_hover(true, f.cx);
+  first.values.on_hover(false, f.cx);
+  assert.equal(f.view.hovered, 'second');
+  second.values.on_hover(false, f.cx);
+  assert.equal(f.view.hovered, null);
+  for (const fish of [first, second]) {
+    assert.equal(fish.values.hover, undefined);
+    assert.equal(fish.values.rounded, undefined);
+    assert.equal(typeof fish.values.focus, 'function');
+    assert.ok(fish.values.accessibility_label);
+    assert.ok(fish.childNodes.slice(1).every(label => label.values.bg === undefined));
+  }
+  first.values.on_click();
+  assert.equal(f.commands[0][0], 'agent.focus');
+  assert.equal(f.commands[0][1].terminal, 'first');
+});
+
 test('layout-switch callbacks suspend source then request target resume in order', async () => {
   const workspace = fixture(new Map(), false);
   const immersive = fixture(new Map(), true);

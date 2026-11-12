@@ -6,7 +6,7 @@ Your coding agents, as a school of fish. Two native [Herdr GUI](https://herdr.de
 
 ![Native Herdr aquarium workspace panel](preview.png)
 
-*Fresh native workspace-panel capture with five real fish and Options closed. Agent names and both details-strip lines are privacy-blurred; native colors, fish positions, status text, and controls are retained without grading or reconstruction. The surround and headings are presentation, not app UI. The panel was temporarily 500 px tall for capture, then restored to its normal 320 px.*
+*Fresh native workspace-panel capture with five real fish and Options closed. Agent names and both details-strip lines are privacy-blurred; native colors, fish positions, status text, and controls are retained without grading or reconstruction. The surround and headings are presentation, not app UI. The panel was temporarily 500 px tall for capture, then restored to its normal 320 px. This capture predates the subsequent removal of the navy label pills/hover rectangles.*
 
 Regenerate from the pinned sanitized input with `uv run --with pillow==11.3.0 python tools/prepare-preview.py` (build-time only). See [gallery direction and provenance](docs/gallery-direction.md).
 
@@ -23,7 +23,7 @@ herdr-app do layout.switch '{"name":"aquarium-immersive"}'
 herdr-app do layout.switch '{"name":"main"}'
 ```
 
-Hover a fish for status and location. The details strip follows the hovered agent, then the focused agent, then the first agent. Fish expose native Button Tab stops, focus-border styles, accessible labels, and keyboard activation; complete hands-on keyboard acceptance remains tracked in #5. In Free-floating mode each fish's generous click target and label move with it. Organized mode keeps stationary travel lanes; crowded schools wrap and scroll.
+Hover a fish for status and location. The details strip follows the hovered agent, then the focused agent, then the first agent. Fish expose native Button Tab stops, focus-border styles, accessible labels, and keyboard activation; complete hands-on keyboard acceptance remains tracked in #5. In Free-floating mode each fish's generous click target and label move with it; hovering any family member parks that whole family until the pointer leaves. Other families keep drifting, and leaving does not override Pause or Needs you. Organized mode keeps stationary travel lanes; its baked animation is not hover-paused. Crowded schools wrap and scroll. Names/statuses use dark lettering directly on the bright habitat, without navy pills or hover cards; native focus borders remain. Hover-hold has scheduler/callback regression coverage but still needs a physical native input pass.
 
 **Sub-agents become little fish in their parent's family.** Real `terminals().parent` relationships determine the groups, including nested descendants. Children inherit the main agent's species, with smaller portraits; deeper descendants are smaller again. Free-floating families drift as a group, keeping children alongside their parent. Organized families cluster beneath or alongside the parent depending on space. Each still has its own status, tooltip, Tab stop, and terminal click target. Missing/unmapped parents leave fish independent rather than guessing relationships. Families taller than the tank use separate scroll bands; multiple fitting families that each exceed half the tank in both dimensions also get separate bands so their targets cannot remain permanently overlapped. Narrow panes can scroll horizontally, and ordinary Free-floating routes can still cross.
 

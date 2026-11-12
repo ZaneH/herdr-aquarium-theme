@@ -5,8 +5,8 @@ import { parkMotion, startMotion, advanceMotion } from "./motion.js";
 import { detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
 
 const ART = "mods/aquarium/assets";
-// Tank-local ink: independent of host chrome, readable over every habitat region.
-const tankInk = { background: "#173b46", foreground: "#f2faf5", working: "#b7efdb", blocked: "#ffd0b5", done: "#ffe49b", idle: "#d2e5e5" };
+// Dark lettering sits directly on the bright habitat, without label cards.
+const tankInk = { background: "#173b46", foreground: "#0a2028", working: "#b7efdb", blocked: "#ffd0b5", done: "#ffe49b", idle: "#d2e5e5" };
 const statusLabel = { working: "Working", blocked: "Needs you", done: "Finished", idle: "Resting" };
 
 export default class Aquarium extends View {
@@ -85,9 +85,10 @@ export default class Aquarium extends View {
     enabled = enabled && !this.suspended && appWindow().active;
     const now = Date.now();
     const addresses = new Set();
-    for (const { leader, layout: g } of families) {
+    for (const { leader, children = [], layout: g } of families) {
       addresses.add(leader.address);
-      const active = enabled && leader.status !== "blocked" && leader.status !== "done" && (g.maxX > 0 || g.maxY > 0);
+      const held = this.hovered === leader.address || children.some(({ agent }) => agent.address === this.hovered);
+      const active = enabled && !held && leader.status !== "blocked" && leader.status !== "done" && (g.maxX > 0 || g.maxY > 0);
       const key = [g.width, g.height, g.maxX, g.maxY, g.top, active, speed, soft].join(":");
       const previous = this.motion.get(leader.address);
       if (previous?.key === key) continue;
@@ -136,6 +137,7 @@ export default class Aquarium extends View {
     const immersive = Boolean(props()?.immersive);
     const all = terminals();
     const school = schoolAgents(agents(), all);
+    if (this.hovered && !school.some(a => a.address === this.hovered)) this.hovered = null;
     const focusedAgent = school.find(a => a.address === focused()?.agent);
     if (props()?.terminal) {
       const agent = focusedAgent;
@@ -209,19 +211,23 @@ export default class Aquarium extends View {
             .loop("opacity", { from: 0.15, to: 0.9, period: 1200 })))
         .when(needsYou && animate, el => el.id(`front-glass-${a.address}`).loop("top", { from: 0, to: 6 * scale, period: 3200 }));
       return Button.new(`fish-${a.address}`).tab_index(tabIndex++).relative().w(width).h(artHeight + 38).flex_none()
-        .flex().flex_col().items_center().justify_end().pb(9).rounded(14)
+        .flex().flex_col().items_center().justify_end().pb(9)
         .border(1).border_color("#00000000").focus(s => s.border_color(tankInk.background))
-        .hover(s => s.bg("#173b4614").border_color(tankInk.background))
         .accessibility_label(`${a.title || a.program.name}, ${statusLabel[a.status]}. ${d.join(". ")}. Open agent.`)
         .tooltip(`${a.title || a.program.name}\n${d.join("\n")}\nClick to open agent`)
-        .on_hover((hovered, cx) => { this.hovered = hovered ? a.address : null; cx.notify(); })
+        .on_hover((hovered, cx) => {
+          if (hovered) this.hovered = a.address;
+          else if (this.hovered === a.address) this.hovered = null;
+          else return;
+          cx.notify();
+        })
         .on_click(() => open(a))
         .child(fish)
-        .child(h_flex().gap(5).items_center().px(5).rounded(4).bg(tankInk.background).text_color(tankInk.foreground)
+        .child(h_flex().gap(5).items_center().px(5).text_color(tankInk.foreground)
           .child(div().size(6).rounded_full().bg(color))
           .child(div().max_w(width - 24).truncate().text_size(12).font_semibold()
             .child(`${leader !== a ? "↳ " : ""}${a.title || a.program.name}`)))
-        .child(div().px(5).rounded(4).bg(tankInk.background).text_size(11).text_color(color).child(statusLabel[a.status]));
+        .child(div().px(5).text_size(11).text_color(tankInk.foreground).child(statusLabel[a.status]));
     };
 
     const toggle = (id, label, checked, change) => Switch.new(id).checked(checked).on_change(change)

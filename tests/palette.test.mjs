@@ -21,21 +21,22 @@ test('owned layouts use versioned bright habitat identities for background and p
   }
 });
 
-test('tank ink contrasts with habitat paints and text backing independently of host theme', () => {
+test('unbacked lettering and keyboard focus contrast with habitat paints independently of host theme', () => {
   const source = read('mods/aquarium/main.js');
   const ink = Object.fromEntries([...source.match(/const tankInk = \{([^}]+)\}/)[1]
     .matchAll(/(\w+): "(#[a-f0-9]{6})"/g)].map(m => [m[1], m[2]]));
-  for (const [name, color] of Object.entries(ink)) {
-    if (name !== 'background') assert.ok(contrast(color, ink.background) >= 4.5, name);
-  }
   const paints = [];
   for (const file of ['habitat-bright-v1.svg', 'habitat-full-bright-v1.svg']) {
     const colors = [...read(`mods/aquarium/assets/${file}`).matchAll(/#[a-f0-9]{6}/g)].map(m => m[0]);
     paints.push(colors);
-    for (const color of colors) assert.ok(contrast(color, ink.background) >= 3, `${file}: ${color}`);
+    for (const color of colors) {
+      assert.ok(contrast(color, ink.background) >= 3, `${file} focus: ${color}`);
+      assert.ok(contrast(color, ink.foreground) >= 4.5, `${file} lettering: ${color}`);
+    }
   }
   assert.deepEqual(paints[0], paints[1]);
   // These are paint-level checks, not native rendering or keyboard acceptance.
   assert.match(source, /focus\(s => s.border_color\(tankInk.background\)\)/);
-  assert.match(source, /bg\(tankInk.background\).text_color\(tankInk.foreground\)/);
+  assert.doesNotMatch(source, /bg\(tankInk.background\)/);
+  assert.doesNotMatch(source, /hover\(s => s.bg\("#173b4614"\)/);
 });

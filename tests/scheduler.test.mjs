@@ -68,6 +68,55 @@ test('pause freezes position and makes a cancelled callback inert', () => {
   assert.equal(f.view.motion.get('parent').state.phase, 'parked');
 });
 
+test('hovering a child parks only its family at its current point; leaving resumes from there', () => {
+  const f = fixture();
+  const members = [{ ...families[0], children: [{ agent: { address: 'child' } }] },
+    { leader: { address: 'other', status: 'working' }, layout: { ...g, seed: 44 } }];
+  f.sync(true, members);
+  f.fire(250);
+  f.clock.now = 4250;
+  const before = f.view.motion.get('parent').state;
+  const expected = motion.positionAt(before, f.clock.now);
+  f.view.hovered = 'child';
+  f.sync(true, members);
+  const held = f.view.motion.get('parent').state;
+  assert.equal(held.phase, 'parked');
+  assert.deepEqual(held.from, expected);
+  assert.deepEqual(held.to, expected);
+  assert.equal(held.face, before.face);
+  assert.equal(f.view.motion.get('other').state.phase, 'moving');
+  // Other families keep their scheduler; its next wake cannot move the held family.
+  f.fire(8450);
+  assert.equal(f.view.motion.get('parent').state, held);
+  f.view.hovered = null;
+  f.sync(true, members);
+  const resumed = f.view.motion.get('parent').state;
+  assert.equal(resumed.phase, 'ready');
+  assert.deepEqual(resumed.from, expected);
+  assert.equal(resumed.face, held.face);
+});
+
+test('leader hover cancels its only deadline; leaving never overrides pause or blocked state', () => {
+  const f = fixture();
+  f.sync();
+  f.fire(250);
+  const pending = f.tasks.at(-1);
+  f.clock.now = 1000;
+  f.view.hovered = 'parent';
+  f.sync();
+  assert.ok(pending.cancelled);
+  assert.equal(f.view.motionDue, Infinity);
+  const held = f.view.motion.get('parent').state;
+  f.fire(99999, pending);
+  assert.equal(f.view.motion.get('parent').state, held);
+  f.view.hovered = null;
+  f.sync(false);
+  assert.equal(f.view.motion.get('parent').state.phase, 'parked');
+  f.sync(true, [{ ...families[0], leader: { address: 'parent', status: 'blocked' } }]);
+  assert.equal(f.view.motion.get('parent').state.phase, 'parked');
+  assert.equal(f.view.motionDue, Infinity);
+});
+
 test('resize clamps the baseline; departed families and close cancel pending work', async () => {
   const f = fixture();
   f.sync();
