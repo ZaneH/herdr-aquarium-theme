@@ -3,8 +3,10 @@
 This is the per-species record for the Free-floating in-place tail loop. It covers the
 current approved algorithm only: a 96 × 96 still, a fixed head/facing, and vertical column
 shear capped at two pixels, tapering to zero at a measured caudal-fin boundary. Twelve
-frames at 100 ms, no new clock or mask system. The still/gold PNG fallback and the
-Organized travelling clips are unchanged.
+source frames at 100 ms, no new clock or mask system. The WebP encoder may coalesce
+identical consecutive source frames into longer encoded frames; the decoded 1200 ms
+timeline must still match the intended frame at every 100 ms slot. The still/gold PNG
+fallback and the Organized travelling clips are unchanged.
 
 "Not shipped" means not added in this batch. It does not mean a species cannot be animated.
 The current algorithm cannot separate fins that share the same image columns; future
@@ -13,7 +15,7 @@ Native visual and performance acceptance remains open for every species, includi
 shipped ones. All 25 species have right and left stills, gold stills, swim/glide clips and
 both facings; asset availability is not a blocker for any row.
 
-## Shipped (10)
+## Shipped (11)
 
 Both facings were generated and reviewed at phases 0/3/6/9; the loop exists as
 `<species>-tail-{right,left}.webp`. An edge is the fixed-body boundary: for right-facing
@@ -32,19 +34,18 @@ column to the left of it. Each facing is measured on its own still.
 | swordfish | 14/82 | lunate caudal fin on a very thin peduncle |
 | bluefin_tuna | 21/76 | thin lunate caudal fin; rear dorsal finlets shear with the peduncle by at most ~1 px, below visible scale |
 | channel_catfish | 21/74 | forked caudal fin; barbels and adipose fin outside the band |
+| anglerfish | 20/78 | narrow caudal fin; the pelvic fin starts inside the body, so the band stops before it. The encoder coalesces duplicate source frames into 8 encoded frames, but the decoded 1200 ms timeline matches all 12 intended slots. |
 
-## Reviewed but not shipped (4)
+## Reviewed but not shipped (3)
 
-These have a discrete caudal fin and were inspected as trial loops. Three showed
-visible defects; anglerfish has a narrower candidate whose encoded playback still
-needs validation. Missing source assets are not the blocker.
+These have a discrete caudal fin and were inspected as trial loops. All three showed
+visible defects. Missing source assets are not the blocker.
 
 | species | evidence | concrete blocker | what would help |
 |---|---|---|---|
 | great_white_shark | facing R/L 25/80 | heterocercal tail is one large swept unit; shifting it as columns slides both lobes against the narrow peduncle and reads as a rubbery hinge, worst at the long upper lobe. The left still is a different pose, so this is not a mirror artefact. | Authored tail flex about the peduncle joint, or a tail-only layer with a pivot. Edge tuning alone would either cut the lobe or move body columns. |
 | hammerhead_shark | 26/78 | caudal lobes are only a few pixels thick; a two-pixel shift is comparable to lobe thickness, producing a visible step/hook and a detached, rubbery lower lobe. | Redraw the tail with a thicker peduncle and authored flex, or a per-fin rotation rig. A mask over this art is not enough. |
 | silver_arowana | 21/78 | the band boundary crosses the trailing tips of the long dorsal and anal fins. Shear moves those fin tips with the caudal fan, leaving a visible one-to-two-pixel step at the boundary in both facings. | A tail-only mask that excludes the dorsal/anal tips, or art with a clear peduncle. Moving the edge inward would shear more body. |
-| anglerfish | trial R/L 24/71 and 20/78 | wide bounds shear the adjacent pelvic fin. Narrow bounds preserve it but WebP coalesces duplicate source frames into 8 encoded frames. A lower encoded frame count alone is not a defect or host limitation. | Validate the narrowed loop's total duration, timeline and visible anatomy; accept coalescing if playback is equivalent. Do not widen the band over the pelvic fin just to satisfy a frame-count assertion. |
 
 ## Not shipped: distinct anatomy, no separable caudal fin (11)
 
@@ -74,9 +75,11 @@ fin motion artwork or a fin mask/rig, not a different edge number.
 2. A pivot at the peduncle and rotation/flex, at least for swept shark lobes and long
    trailing fins, rather than a vertical translation.
 3. New or redrawn stills where the caudal fan does not touch dorsal/anal/pectoral tips.
-4. Re-run the same gates: both facings, 12 × 100 ms, fixed body/head/eyes alpha,
-   transparent perimeter, byte-identical sources, deterministic WebP generation, and an
-   inspected contact sheet. Native acceptance is still separate and open.
+4. Re-run the same gates: both facings, 12 source frames at 100 ms with a decoded
+   1200 ms timeline that matches every intended slot (encoded frames may coalesce),
+   fixed body/head/eyes/pelvic-fin alpha, transparent perimeter, byte-identical sources,
+   deterministic WebP generation, and an inspected contact sheet. Native acceptance is
+   still separate and open.
 
 Generation and tests: `tools/prepare-in-place-fish.py`; `tests/test_in_place_fish.py`,
 `tests/model.test.mjs`, `tests/facing.test.mjs`. Trials and contact sheets are build-time
