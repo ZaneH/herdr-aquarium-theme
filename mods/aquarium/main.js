@@ -184,6 +184,9 @@ export default class Aquarium extends View {
         .child(this.button("back-to-workspace", "Workspace", () => { this.suspended = true; this.stopMotion(); run("layout.switch", { name: "aquarium" }); run("aquarium.resume"); }, 1));
     }
 
+    // Keep the first match for duplicate addresses, without rescanning per fish.
+    const terminalByAddress = new Map();
+    for (const terminal of all) if (!terminalByAddress.has(terminal.address)) terminalByAddress.set(terminal.address, terminal);
     const paused = shared("aquarium.paused") !== false;
     const activeWindow = Boolean(appWindow()?.active);
     if (!activeWindow || this.suspended) this.pickerTarget = null;
@@ -198,7 +201,7 @@ export default class Aquarium extends View {
     this.syncCompletions(school, !animate, cx);
     const selected = school.find(a => a.address === this.hovered)
       ?? focusedAgent ?? school.find(a => a.focused) ?? school[0];
-    const detail = selected ? detailsFor(selected, all.find(a => a.address === selected.address)) : null;
+    const detail = selected ? detailsFor(selected, terminalByAddress.get(selected.address)) : null;
     const families = schoolFamilies(school, all);
     const geometry = schoolGeometry(Math.max(120, this.size.width - 32), Math.max(170, this.size.height - 140), families.length, immersive);
     const lane = geometry.lane;
@@ -222,7 +225,7 @@ export default class Aquarium extends View {
     const drawFish = (a, width, scale, leader) => {
       const choiceKey = familyChoiceKey(leader, nativeSpaces);
       const choice = choiceKey ? savedSpecies(shared(choiceKey)) : null;
-      const d = detailsFor(a, all.find(terminal => terminal.address === a.address));
+      const d = detailsFor(a, terminalByAddress.get(a.address));
       if (leader !== a) d.push(`Fish family: ${leader.title || leader.program.name}`);
       const color = tankInk[a.status] ?? tankInk.idle;
       const moving = animate && a.status !== "done" && a.status !== "blocked";

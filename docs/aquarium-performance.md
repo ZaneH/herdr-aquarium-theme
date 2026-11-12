@@ -448,3 +448,58 @@ run/order variability or establish a noise bound. This is not evidence of zero
 cost or a speedup; no GPU, FPS or decoded-image-residency claim follows. Raw
 per-sample JSON, manifests, per-condition hash chains and screenshots are
 local-only under `.git/aquarium-reports/feed-native/2026-11-12T06-56-28Z/`.
+
+## 2026-11-12: matched native A/B for the terminal-lookup index candidate (issue #5 minimal)
+
+Local/private evidence; raw artifacts under
+`.git/aquarium-reports/schoolcpu-native/2026-11-12T14-18-47Z/` (not committed).
+
+Matched native A/B on GUI host Herdr PID 80325 (`dev.herdr.app`, unchanged start
+identity, Herdr frontmost at every sample; never raised). Arm A = `main.js` at
+`5af7141` (two `all.find` terminal scans); arm B = the render-local
+`terminalByAddress` Map change (`main.js` SHA-256
+`0b8372dfa4f31ae7957b1b953c4df2b4305db01173bdb6c0ee60008f071fd3c6`). Synthetic fixtures from
+`tools/prepare-native-fixture.mjs` (baseline generated from a /tmp repo copy
+with the git-baseline `main.js`; both 250-root fixtures used a /tmp generator
+copy with the count allowlist widened — repo files untouched). Same everything
+else per window: 10 working roots, free arrangement, speed `normal`,
+bubbles/water on, motion enabled, food off, only `aquarium.js` differing;
+installed hashes and `herdr-app check` verified outside every official window.
+Order A-B-B-A, one attempt per scheduled window, 3 s warmup + 10 s official at
+1 Hz cumulative CPU + RSS + foreground; 11/11 Herdr-frontmost samples required.
+
+All four count-10 windows were valid (11/11 front samples each):
+
+| Window | Arm | CPU s / actual elapsed s | % of one logical CPU | RSS mean (MiB) |
+|---|---|---|---:|---:|
+| 1 | A | 3.15 / 10.048 | 31.349 | 217.112 |
+| 2 | B | 3.13 / 10.048 | 31.149 | 210.639 |
+| 3 | B | 3.17 / 10.047 | 31.551 | 211.439 |
+| 4 | A | 3.24 / 10.045 | 32.254 | 211.689 |
+
+B−A: −0.45 **percentage points** of one logical CPU (arm means 31.35 vs 31.80),
+−1.42 % relative to A. Both adjacent ordered pairs are negative (−0.20, −0.70
+pp), but two paired repeats in one session are not a reliable long-term
+estimate: arm A's own windows differ by 0.90 pp, whole-app CPU confounds both
+arms, and no statistical support exists for any noise or zero-cost claim. The
+ordinary 10-root scene shows no clear native CPU effect either way for this
+change; this is not a native paint proof of the source-only dense gain.
+
+The small lookup change is retained to replace repeated per-fish linear scans
+with one render-local index, preserving first-match semantics and next-render
+freshness. It is not a demonstrated solution to the active CPU cost in #5.
+
+**250-root stress arm: invalid pre-measurement condition, not measured.**
+`herdr-app check` failed on both generated 250-root fixtures (baseline and
+candidate), reporting `interrupted` at different render-stack sites, while both
+10-root fixtures passed. The captured errors do not establish the underlying
+interruption mechanism or whether a live 250-root window would fail. Per the
+validation gate, no 250-root fixture was installed or measured: no partial 250
+performance data exists. A dense-scene native benefit therefore remains
+unproven.
+
+Banner OCR outside the official windows confirmed `10 ROOTS — ENABLED — FOOD
+OFF` before and after; `status.errors` stayed `[]`; the owned fixture mod tree
+and both fixture layouts were restored byte-identical, `shared.json`,
+`window.json`, `settings.json` were byte-unchanged, and the captured current
+layout (`aquarium-immersive`) was restored.
