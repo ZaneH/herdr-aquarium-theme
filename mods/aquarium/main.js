@@ -1,9 +1,9 @@
 import { View, div, image } from "gpui-kit";
-import { h_flex, v_flex, Button, Switch, Radio, RadioGroup, Popover } from "gpui-base";
+import { h_flex, v_flex, Button, Switch, Radio, RadioGroup, Popover, Input, InputState } from "gpui-base";
 import { agents, terminals, spaces, theme, run, shared, setShared, props, focused, nextCommand, window as appWindow } from "herdr";
 import { parkMotion, startMotion, advanceMotion, positionAt } from "./motion.js";
 import { fishPresentation, familyNeedsAttention } from "./presentation.js";
-import { SPECIES, familyChoiceKey, savedSpecies, speciesName, speciesFor, detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
+import { SPECIES, familyChoiceKey, fishName, fishNameKey, savedName, savedSpecies, speciesName, speciesFor, detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
 
 const ART = "mods/aquarium/assets";
 // Dark lettering sits directly on the bright habitat, without label cards.
@@ -25,6 +25,14 @@ export default class Aquarium extends View {
     this.motionGeneration = 0;
     this.suspended = false;
     this.closed = false;
+    // Retained text state lives on the view; Enter submits the picker's rename.
+    this.nameTarget = null;
+    this.nameState = InputState.new({ placeholder: "Fish name" });
+    this.nameState.on("submit", () => {
+      if (!this.nameTarget?.key) return;
+      // Empty input clears the custom name, restoring the deterministic default.
+      setShared(this.nameTarget.key, savedName(this.nameState.value()) ?? "");
+    });
     cx.spawn(async cx => {
       // Keyboard equivalent of the Feed button, live only while the keyboard is inside the tank.
       cx.bind_keys([{ keystroke: "f", action: "aquarium.feed", context: "Aquarium" }]);
@@ -239,7 +247,10 @@ export default class Aquarium extends View {
     const drawFish = (a, width, scale, leader) => {
       const choiceKey = familyChoiceKey(leader, nativeSpaces);
       const choice = choiceKey ? savedSpecies(shared(choiceKey)) : null;
+      const { name } = fishName(a, nativeSpaces, shared);
       const d = detailsFor(a, terminalByAddress.get(a.address));
+      // Agent/project identity stays in details behind the personal name.
+      d.push(`Agent: ${a.title || a.program.name}`);
       if (leader !== a) d.push(`Fish family: ${leader.title || leader.program.name}`);
       const color = tankInk[a.status] ?? tankInk.idle;
       const moving = animate && a.status !== "done" && a.status !== "blocked";
@@ -277,8 +288,8 @@ export default class Aquarium extends View {
       return Button.new(`fish-${a.address}`).tab_index(tabIndex++).relative().w(width).h(presentation.targetHeight).flex_none()
         .flex().flex_col().items_center().justify_end().pb(9)
         .border(1).border_color("#00000000").focus(s => s.border_color(night ? labelInk : tankInk.background))
-        .accessibility_label(`${a.title || a.program.name}, ${statusLabel[a.status]}. ${d.join(". ")}. Open agent.`)
-        .tooltip(`${a.title || a.program.name}\n${d.join("\n")}\nClick to open agent`)
+        .accessibility_label(`${name}, ${statusLabel[a.status]}. ${d.join(". ")}. Open agent.`)
+        .tooltip(`${name}\n${d.join("\n")}\nClick to open agent`)
         .on_hover((hovered, cx) => {
           if (hovered) { this.hovered = a.address; this.inspected = a.address; }
           else if (this.hovered === a.address) this.hovered = null;
@@ -290,7 +301,7 @@ export default class Aquarium extends View {
         .child(h_flex().gap(5).items_center().px(5).text_color(labelInk)
           .child(div().size(6).rounded_full().bg(color))
           .child(div().max_w(width - 24).truncate().text_size(12).font_semibold()
-            .child(`${leader !== a ? "↳ " : ""}${a.title || a.program.name}`)))
+            .child(`${leader !== a ? "↳ " : ""}${name}`)))
         .child(div().px(5).text_size(11).text_color(labelInk).child(statusLabel[a.status]));
     };
 
@@ -331,13 +342,23 @@ export default class Aquarium extends View {
         .child(toggle("aquarium-water", "Surface waves", water, checked => setShared("aquarium.water", checked)))
         .child(toggle("aquarium-night", "Night lighting", night, checked => setShared("aquarium.night", checked))));
 
-    const candidate = families.find(({ leader, children }) => leader.address === this.inspected ||
-      children.some(({ agent }) => agent.address === this.inspected))?.leader
+    const inspectedFamily = families.find(({ leader, children }) => leader.address === this.inspected ||
+      children.some(({ agent }) => agent.address === this.inspected))
       ?? families.find(({ leader, children }) => leader.address === selected?.address ||
-        children.some(({ agent }) => agent.address === selected?.address))?.leader;
+        children.some(({ agent }) => agent.address === selected?.address));
+    const candidate = inspectedFamily?.leader;
     const fishPicker = () => {
       const leader = candidate;
       const key = leader ? familyChoiceKey(leader, nativeSpaces) : null;
+      // Species stays family-leader scoped; the rename targets the inspected/focused fish itself.
+      const nameFish = inspectedFamily
+        ? [inspectedFamily.leader, ...inspectedFamily.children.map(({ agent }) => agent)]
+          .find(fish => fish.address === this.inspected)
+          ?? [inspectedFamily.leader, ...inspectedFamily.children.map(({ agent }) => agent)]
+            .find(fish => fish.address === selected?.address)
+          ?? leader
+        : null;
+      const nameKey = nameFish ? fishNameKey(nameFish, nativeSpaces) : null;
       const target = this.pickerTarget;
       const isOpen = Boolean(target);
       const value = isOpen ? savedSpecies(shared(target.key)) : null;
@@ -355,6 +376,9 @@ export default class Aquarium extends View {
         .on_open_change((open, cx) => {
           // Capture identity at opening, never follow hover/focus while editing.
           this.pickerTarget = open && key ? { key, address: leader.address, title: leader.title || leader.address } : null;
+          // The renamed fish is the inspected one (child or leader), captured here at opening.
+          this.nameTarget = open && nameKey ? { key: nameKey, address: nameFish.address, title: nameFish.title || nameFish.address } : null;
+          if (open && nameKey && this.nameState) this.nameState.set_value(fishName(nameFish, nativeSpaces, shared).name);
           if (open) this.optionsOpen = false;
           // Open on the page holding the saved choice, so the selection is visible.
           this.pickerPage = open && key ? Math.floor(Math.max(0, allChoices.indexOf(savedSpecies(shared(key)))) / pageRows) : 0;
@@ -366,6 +390,10 @@ export default class Aquarium extends View {
           .max_h(Math.max(0, Math.min(420, window.viewport_size().height - 24))).overflow_y_scrollbar()
           .p(12).gap(6).bg(t.surface).text_color(t.foreground).rounded(8)
           .child(div().flex_none().child(`Fish for ${isOpen ? target.title : leader?.title || leader?.address || "no family"}`))
+          .when(isOpen && this.nameState, el => el.child(v_flex().id("aquarium-fish-name-row").flex_none().gap(4)
+            .child(div().text_size(11).text_color(t.muted).child("Fish name"))
+            .child(Input.new(this.nameState).id("aquarium-fish-name").w_full().h(28).flex_none()
+              .accessibility_label(`Fish name for ${this.nameTarget?.title ?? target?.title ?? "no fish"}; Enter saves, empty restores the default`))))
           .when(Boolean(previewAsset), el => el.child(h_flex().id("aquarium-fish-preview").flex_none().gap(10).items_center()
             .child(image(`${ART}/${previewAsset}`).id("aquarium-fish-preview-art").size(88).flex_none())
             .child(v_flex().flex_1().min_w(0).gap(2)

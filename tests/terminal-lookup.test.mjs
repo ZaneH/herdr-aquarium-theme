@@ -43,6 +43,8 @@ function fixture(agents, terminals) {
     return node;
   };
   for (const name of ['Button', 'Switch', 'Radio', 'RadioGroup', 'Popover']) env[name] = { new: id => element(name, id) };
+  env.InputState = { new: () => ({ set_value() {}, on() {}, value: () => '' }) };
+  env.Input = { new: () => element('Input') };
   const Aquarium = runInNewContext(`${source}\nAquarium;`, env);
   const view = new Aquarium();
   Object.assign(view, { size: { width: 900, height: 500 }, previous: new Map(), shimmers: new Map(), motion: new Map(), food: null, optionsOpen: false });

@@ -53,6 +53,8 @@ export const div = chain; export const image = chain;
 export const Button = { new: chain }; export const Switch = { new: chain };
 export const Radio = { new: chain }; export const RadioGroup = { new: chain };
 export const Popover = { new: chain };
+export const Input = { new: chain };
+export const InputState = { new: () => ({ set_value() {}, on() {}, value: () => "" }) };
 `);
 }
 

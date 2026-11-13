@@ -35,6 +35,8 @@ test('raw child peeks without suspension; mapped child retains immersive focus a
     appWindow: () => ({ active: true }), window: { viewport_size: () => ({ width: 900, height: 500 }) } };
   for (const name of ['div', 'image', 'h_flex', 'v_flex']) env[name] = () => element();
   for (const name of ['Button', 'Switch', 'Radio', 'RadioGroup', 'Popover']) env[name] = { new: element };
+  env.InputState = { new: () => ({ set_value() {}, on() {}, value: () => '' }) };
+  env.Input = { new: () => element() };
   const source = readFileSync(new URL('../mods/aquarium/main.js', import.meta.url), 'utf8')
     .replace(/^import .*;\n/gm, '').replace('export default class Aquarium', 'globalThis.Aquarium = class Aquarium');
   const Aquarium = runInNewContext(`${source}\nAquarium;`, env);
