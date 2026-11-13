@@ -25,17 +25,14 @@ export default class Aquarium extends View {
     this.motionGeneration = 0;
     this.suspended = false;
     this.closed = false;
-    // Retained text state lives on the view; Enter submits the picker's rename.
+    // Retained text state lives on the view; Enter and the Save button share one save path.
     this.nameTarget = null;
     this.nameState = InputState.new({ placeholder: "Fish name" });
-    this.nameState.on("submit", () => {
-      if (!this.nameTarget?.key) return;
-      // Empty input clears the custom name, restoring the deterministic default.
-      setShared(this.nameTarget.key, savedName(this.nameState.value()) ?? "");
-    });
+    this.nameState.on("submit", () => this.saveFishName());
     cx.spawn(async cx => {
-      // Keyboard equivalent of the Feed button, live only while the keyboard is inside the tank.
-      cx.bind_keys([{ keystroke: "f", action: "aquarium.feed", context: "Aquarium" }]);
+      // Feed stays a button and a named command only. The app keymap is global
+      // and the tank's key_context covers its whole subtree, so a plain "f"
+      // binding would also steal typing in the Fish name input above.
       for (;;) {
         const command = await nextCommand();
         if (command === "motion") setShared("aquarium.paused", shared("aquarium.paused") === false);
@@ -68,9 +65,17 @@ export default class Aquarium extends View {
     }
   }
 
+  saveFishName() {
+    if (!this.nameTarget?.key) return;
+    // Empty input clears the custom name, restoring the deterministic default.
+    setShared(this.nameTarget.key, savedName(this.nameState.value()) ?? "");
+  }
+
   dropFood(cx) {
     // One bounded pellet at a time, at a deterministic spot in the free-floating school.
+    // No feed while a popover is open, so queued bound commands cannot act behind it.
     if (this.closed || this.suspended || !appWindow()?.active || this.food) return;
+    if (this.optionsOpen || this.pickerTarget) return;
     if (shared("aquarium.paused") !== false || shared("aquarium.free") === false) return;
     const bodyTop = (this.controlsHeight ?? 30) + 20;
     const food = { x: Math.max(20, (this.size.width - 32) / 2),
@@ -364,7 +369,14 @@ export default class Aquarium extends View {
       const value = isOpen ? savedSpecies(shared(target.key)) : null;
       // shortcut: native popup scrolling remains unverified; page choices until it is reliable.
       const allChoices = [null, ...SPECIES];
-      const pageRows = Math.max(1, Math.floor((Math.max(0, Math.min(420, window.viewport_size().height - 24)) - 88) / 48));
+      const boundedHeight = Math.max(0, Math.min(420, window.viewport_size().height - 24));
+      // Native popover scrolling never established itself, so every fixed row —
+      // header, name+Save, preview and pager — must share the height bound with
+      // the species rows, or the pager falls below the fold and later pages stay
+      // unreachable. Rows are 44 px + 4 px gap; fixed chrome is about 232 px.
+      // shortcut: below ~280 px of viewport the popover still clips; upgrade by
+      // shrinking the preview once native popover scrolling is trustworthy.
+      const pageRows = Math.max(1, Math.floor((boundedHeight - 232) / 48));
       const pageCount = Math.max(1, Math.ceil(allChoices.length / pageRows));
       const page = Math.min(Math.max(0, this.pickerPage || 0), pageCount - 1);
       const rows = isOpen ? allChoices.slice(page * pageRows, page * pageRows + pageRows) : [];
@@ -391,9 +403,12 @@ export default class Aquarium extends View {
           .p(12).gap(6).bg(t.surface).text_color(t.foreground).rounded(8)
           .child(div().flex_none().child(`Fish for ${isOpen ? target.title : leader?.title || leader?.address || "no family"}`))
           .when(isOpen && this.nameState, el => el.child(v_flex().id("aquarium-fish-name-row").flex_none().gap(4)
-            .child(div().text_size(11).text_color(t.muted).child("Fish name"))
-            .child(Input.new(this.nameState).id("aquarium-fish-name").w_full().h(28).flex_none()
-              .accessibility_label(`Fish name for ${this.nameTarget?.title ?? target?.title ?? "no fish"}; Enter saves, empty restores the default`))))
+            .child(div().text_size(11).text_color(t.muted)
+              .child("Fish name — Save (or Enter) keeps it; empty restores the default"))
+            .child(h_flex().flex_none().gap(8).items_center()
+              .child(Input.new(this.nameState).id("aquarium-fish-name").flex_1().min_w(0).h(28).flex_none()
+                .accessibility_label(`Fish name for ${this.nameTarget?.title ?? target?.title ?? "no fish"}; Save or Enter keeps it, empty restores the default`))
+              .child(this.button("aquarium-fish-name-save", "Save", () => this.saveFishName())))))
           .when(Boolean(previewAsset), el => el.child(h_flex().id("aquarium-fish-preview").flex_none().gap(10).items_center()
             .child(image(`${ART}/${previewAsset}`).id("aquarium-fish-preview-art").size(88).flex_none())
             .child(v_flex().flex_1().min_w(0).gap(2)
@@ -495,14 +510,14 @@ export default class Aquarium extends View {
       .child(this.button("aquarium-feed", this.food ? "Feeding…" : "Feed", animate && free ? (_event, cx) => this.dropFood(cx) : undefined)
         .disabled(!animate || !free || Boolean(this.food))
         .tooltip(animate && free
-          ? "Drop one food pellet (or press f while the tank has the keyboard); one at a time, it expires after ten seconds"
+          ? "Drop one food pellet; one at a time, it expires after ten seconds"
           : "Feed needs Animate aquarium and Free-floating on, in Options")
         .accessibility_label(animate && free
           ? (this.food ? "Feeding: pellet in the water, expires shortly" : "Drop fish food")
           : "Fish food needs free-floating motion enabled"))
       .child(fishPicker()).child(options);
     return v_flex().id("aquarium-root").size_full().text_color(t.foreground)
-      .key_context("Aquarium")
+      // Retire the old key context too: app-global bindings may survive hot reload.
       .on_action("aquarium.feed", (_event, cx) => this.dropFood(cx))
       .on_size_change((size, cx) => {
         if (Math.abs(size.width - this.size.width) > 1 || Math.abs(size.height - this.size.height) > 1) {

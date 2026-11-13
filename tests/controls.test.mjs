@@ -235,7 +235,8 @@ test('picker is stationary, bounded, lazy, and closes mutually with Options', ()
   nodes.get('aquarium-fish-picker').values.on_open_change(true, f.cx);
   assert.equal(f.view.optionsOpen, false);
   nodes = f.render();
-  const staleChoice = nodes.get('aquarium-fish-choice-clownfish').values.on_change;
+  // Page 0 may hold only Automatic in a short viewport, so staleness uses the always-present first row.
+  const staleChoice = nodes.get('aquarium-fish-choice-automatic').values.on_change;
   nodes.get('aquarium-options').values.on_open_change(true, f.cx);
   assert.equal(f.view.pickerTarget, null);
   staleChoice(true);
@@ -300,7 +301,9 @@ test('fish picker persists validated family choices and captures intended target
   assert.ok(last.get('aquarium-fish-choice-silver_arowana'), 'final species present on the last page');
   last.get('aquarium-fish-choice-silver_arowana').values.on_change(true);
   assert.equal(settings.get(model.familyChoiceKey(a, data.spaces)), 'silver_arowana');
-  f.view.pickerPage = 0;
+  // Clownfish lives on its own page when a short viewport gives one row per page.
+  const clownfishPage = Math.floor((1 + model.SPECIES.indexOf('clownfish')) / pageRows);
+  f.view.pickerPage = clownfishPage;
   nodes = f.render();
   nodes.get('aquarium-fish-choice-clownfish').values.on_change(true);
   const key = model.familyChoiceKey(a, data.spaces);
@@ -318,6 +321,8 @@ test('fish picker persists validated family choices and captures intended target
   nodes.get('aquarium-fish-picker').values.on_open_change(true, copy.cx);
   assert.equal(copy.render().get('aquarium-fish-choice-clownfish').values.checked, true);
   settings.set(key, 'not-a-fish');
+  // An unknown saved value falls back to Automatic on its own always-present first page.
+  copy.view.pickerPage = 0;
   assert.equal(copy.render().get('aquarium-fish-choice-automatic').values.checked, true);
   assert.equal(model.fishAsset(a, true, false, a.address, false, 'right', 'bad'), model.fishAsset(a, true, false));
   copy.render().get('aquarium-fish-choice-automatic').values.on_change(true);
@@ -417,6 +422,8 @@ test('picker renames the inspected child: only the child, species stays leader, 
   // Species stays family-leader scoped while a child is inspected.
   f.view.inspected = 'child';
   f.render().get('aquarium-fish-picker').values.on_open_change(true, f.cx);
+  const rows = f.render().get('aquarium-fish-species').childNodes.length;
+  f.view.pickerPage = Math.floor(1 / rows);
   f.render().get('aquarium-fish-choice-clownfish').values.on_change();
   assert.equal(settings.get(model.familyChoiceKey(a, data.spaces)), 'clownfish');
   assert.equal(settings.has(model.familyChoiceKey(child, data.spaces)), false, 'no child species key');
@@ -708,8 +715,102 @@ test('picker preview follows the choice with honest motion labels and full gatin
 
   // Selecting a radio updates the preview on the next render, not only the tank.
   const fresh = preview(new Map([...moving, [key, 'manta_ray']]));
-  fresh.nodes.get('aquarium-fish-choice-clownfish').values.on_change(true);
+  const row = fresh.nodes.get('aquarium-fish-species').childNodes.length;
+  fresh.f.view.pickerPage = Math.floor(1 / row);
+  fresh.f.render().get('aquarium-fish-choice-clownfish').values.on_change(true);
   const after = fresh.f.render();
   assert.equal(after.get('aquarium-fish-preview-art').values.asset, 'mods/aquarium/assets/clownfish-tail-right.webp');
-  assert.equal(fresh.f.view.pickerPage ?? 0, 0, 'preview never moves the page');
+  assert.equal(fresh.f.view.pickerPage, Math.floor(1 / row), 'preview never moves the page');
+});
+
+test('Save name button persists the captured fish; a stale target writes nothing', () => {
+  const program = { name: 'Pi' };
+  const a = { address: 't1', space: 's1', title: 'A', status: 'idle', program };
+  const child = { ...a, address: 'child' };
+  const data = { agents: [a, child], terminals: [{ address: 't1' }, { address: 'child', parent: 't1' }],
+    spaces: [{ id: 's1', machine: null }] };
+  const settings = new Map([['aquarium.free', false]]);
+  const f = fixture(settings, false, undefined, data);
+  f.listen();
+  // Inspecting the child and opening captures the child as the rename target.
+  f.view.inspected = 'child';
+  f.render().get('aquarium-fish-picker').values.on_open_change(true, f.cx);
+  f.nameState.text = 'Nemo Jr';
+  f.render().get('aquarium-fish-name-save').values.on_click({}, f.cx);
+  assert.equal(settings.get(model.fishNameKey(child, data.spaces)), 'Nemo Jr', 'Save click persists the exact child');
+  assert.equal(settings.has(model.fishNameKey(a, data.spaces)), false, 'leader untouched');
+  // Blank reset through the same button restores the deterministic default.
+  f.nameState.text = '   ';
+  f.render().get('aquarium-fish-name-save').values.on_click({}, f.cx);
+  assert.equal(settings.get(model.fishNameKey(child, data.spaces)), '');
+  // A stale target (picker closed, capture cleared) must never write shared state.
+  f.view.nameTarget = null;
+  f.nameState.text = 'Sneaky';
+  f.render().get('aquarium-fish-name-save').values.on_click({}, f.cx);
+  for (const handler of f.nameState.submitHandlers) handler();
+  assert.equal(settings.get(model.fishNameKey(child, data.spaces)), '', 'no stale write');
+  // The concise save/reset hint is visible next to the input.
+  const row = f.render().get('aquarium-fish-name-row');
+  const texts = [];
+  const walk = n => { for (const c of n?.childNodes || []) { if (typeof c === 'string') texts.push(c); else walk(c); } };
+  walk(row);
+  assert.ok(texts.some(text => /Save \(or Enter\) keeps it; empty restores the default/.test(text)),
+    'hint names Save, Enter and the empty reset');
+});
+
+test('typing in the tank cannot feed: no key binding, popovers gate queued feed actions', () => {
+  // The app keymap is global and key_context covers the whole subtree, so any
+  // single-letter binding would steal typing; none may remain in the source.
+  assert.ok(!/cx\.bind_keys|"keystroke"/.test(source), 'no single-letter key binding remains');
+  assert.ok(!source.includes('.key_context("Aquarium")'), 'old app-global bindings cannot match the tank after hot reload');
+  const settings = new Map([['aquarium.paused', false], ['aquarium.free', true]]);
+  const f = fixture(settings);
+  f.listen();
+  f.render();
+  const root = f.render().get('aquarium-root');
+  // The named action path (button, command, or a user's own deliberate keymap) still feeds.
+  root.values.on_action[1]({ action: 'aquarium.feed' }, f.cx);
+  assert.ok(f.view.food, 'action dispatch still drops a pellet');
+  // While the picker is open (the name input is focused), no feed may act.
+  f.view.food = null;
+  f.view.pickerTarget = { address: 't1', key: 'k', title: 'A' };
+  root.values.on_action[1]({ action: 'aquarium.feed' }, f.cx);
+  assert.equal(f.view.food, null, 'no pellet behind an open picker');
+  // Options open gates the same way.
+  f.view.pickerTarget = null;
+  f.view.optionsOpen = true;
+  root.values.on_action[1]({ action: 'aquarium.feed' }, f.cx);
+  assert.equal(f.view.food, null, 'no pellet behind open Options');
+  f.view.optionsOpen = false;
+  root.values.on_action[1]({ action: 'aquarium.feed' }, f.cx);
+  assert.ok(f.view.food, 'feed resumes once popovers close');
+});
+
+test('every species stays reachable by paging in narrow and short viewports, pager always visible', () => {
+  const program = { name: 'Pi' };
+  const a = { address: 't1', space: 's1', title: 'A', status: 'idle', program };
+  const data = { agents: [a], terminals: [], spaces: [{ id: 's1', machine: null }] };
+  for (const viewport of [{ width: 220, height: 240 }, { width: 300, height: 320 }, { width: 400, height: 700 }, { width: 220, height: 900 }]) {
+    const settings = new Map([['aquarium.free', false]]);
+    const f = fixture(settings, false, viewport, data);
+    f.render().get('aquarium-fish-picker').values.on_open_change(true, f.cx);
+    const seen = [];
+    let current = f.render();
+    for (;;) {
+      // The pager and page count stay rendered on every page, so no scrolling is
+      // needed to reach any species regardless of the viewport.
+      assert.ok(current.get('aquarium-fish-next'), 'Next stays reachable');
+      assert.match(String(current.get('aquarium-fish-page').childNodes[0]), /Page \d+ of \d+/, 'page count visible');
+      for (const radio of current.get('aquarium-fish-species').childNodes) seen.push(radio.values.id);
+      if (current.get('aquarium-fish-next').values.disabled) break;
+      current.get('aquarium-fish-next').values.on_click({}, f.cx);
+      current = f.render();
+    }
+    assert.equal(seen.length, 26, 'each viewport pages through all 25 species plus Automatic exactly once');
+    for (const species of ['automatic', ...model.SPECIES])
+      assert.ok(seen.includes(`aquarium-fish-choice-${species}`), `${species} reachable at ${viewport.height}px`);
+    // Rows stay minimal: never more than five per page in any tested viewport.
+    const rows = current.get('aquarium-fish-species').childNodes.length;
+    assert.ok(rows >= 1 && rows <= 5, `minimal page size, got ${rows}`);
+  }
 });
