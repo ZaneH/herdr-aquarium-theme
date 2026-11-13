@@ -3,7 +3,7 @@ import { h_flex, v_flex, Button, Switch, Radio, RadioGroup, Popover, Input, Inpu
 import { agents, terminals, spaces, theme, run, shared, setShared, props, focused, nextCommand, window as appWindow } from "herdr";
 import { parkMotion, startMotion, advanceMotion, positionAt } from "./motion.js";
 import { fishPresentation, familyNeedsAttention } from "./presentation.js";
-import { SPECIES, familyChoiceKey, fishName, fishNameKey, savedName, savedSpecies, speciesName, speciesFor, detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
+import { SPECIES, familyChoiceKey, fishName, fishNameKey, projectName, savedName, savedSpecies, speciesName, speciesFor, detailsFor, schoolGeometry, floatingSchoolGeometry, fishAsset, newCompletions, schoolAgents, schoolFamilies, surfaceGeometry } from "./model.js";
 
 const ART = "mods/aquarium/assets";
 // Dark lettering sits directly on the bright habitat, without label cards.
@@ -79,7 +79,7 @@ export default class Aquarium extends View {
     if (shared("aquarium.paused") !== false || shared("aquarium.free") === false) return;
     const bodyTop = (this.controlsHeight ?? 30) + 20;
     const food = { x: Math.max(20, (this.size.width - 32) / 2),
-      y: Math.max(40, Math.max(178, this.size.height - 68 - bodyTop) / 2) };
+      y: Math.max(40, Math.max(196, this.size.height - 68 - bodyTop) / 2) };
     const task = cx.timer.after(10000, cx => {
       if (this.food?.task === task) { this.food = null; cx.notify(); }
     });
@@ -222,14 +222,25 @@ export default class Aquarium extends View {
     const free = shared("aquarium.free") !== false;
     const speed = shared("aquarium.speed") === "normal" ? "normal" : "slow";
     const night = shared("aquarium.night") === true;
+    const showProjects = shared("aquarium.projects") !== false;
     const labelInk = night ? "#d8f0ed" : tankInk.foreground;
+    const projectInk = night ? "#bddbd9" : "#0c242c";
     // Food is cosmetic and dies with pause/suspension/inactivity/organized mode.
     if ((!animate || !free) && this.food) this.clearFood();
     this.syncCompletions(school, !animate, cx);
     const selected = school.find(a => a.address === this.hovered)
       ?? focusedAgent ?? school.find(a => a.focused) ?? school[0];
-    const detail = selected ? detailsFor(selected, terminalByAddress.get(selected.address)) : null;
     const families = schoolFamilies(school, all);
+    const projects = new Map();
+    for (const { leader, children } of families) {
+      const project = projectName(leader, terminalByAddress.get(leader.address), nativeSpaces);
+      projects.set(leader.address, project);
+      for (const { agent } of children) {
+        const sameMachine = agent.address.slice(0, agent.address.lastIndexOf("/") + 1) === leader.address.slice(0, leader.address.lastIndexOf("/") + 1);
+        projects.set(agent.address, projectName(agent, terminalByAddress.get(agent.address), nativeSpaces, sameMachine ? project : null));
+      }
+    }
+    const detail = selected ? detailsFor(selected, terminalByAddress.get(selected.address), projects.get(selected.address)) : null;
     const geometry = schoolGeometry(Math.max(120, this.size.width - 32), Math.max(170, this.size.height - 140), families.length, immersive);
     const lane = geometry.lane;
     const open = a => {
@@ -253,7 +264,8 @@ export default class Aquarium extends View {
       const choiceKey = familyChoiceKey(leader, nativeSpaces);
       const choice = choiceKey ? savedSpecies(shared(choiceKey)) : null;
       const { name } = fishName(a, nativeSpaces, shared);
-      const d = detailsFor(a, terminalByAddress.get(a.address));
+      const project = projects.get(a.address);
+      const d = detailsFor(a, terminalByAddress.get(a.address), project);
       // Agent/project identity stays in details behind the personal name.
       d.push(`Agent: ${a.title || a.program.name}`);
       if (leader !== a) d.push(`Fish family: ${leader.title || leader.program.name}`);
@@ -303,11 +315,13 @@ export default class Aquarium extends View {
         })
         .on_click(() => { this.inspected = a.address; open(a); })
         .child(fish)
-        .child(h_flex().gap(5).items_center().px(5).text_color(labelInk)
+        .child(h_flex().h(16).line_height(16).flex_none().gap(5).items_center().px(5).text_color(labelInk)
           .child(div().size(6).rounded_full().bg(color))
           .child(div().max_w(width - 24).truncate().text_size(12).font_semibold()
             .child(`${leader !== a ? "↳ " : ""}${name}`)))
-        .child(div().px(5).text_size(11).text_color(labelInk).child(statusLabel[a.status]));
+        .child(div().id(`project-${a.address}`).w(width - 12).h(14).line_height(14).flex_none()
+          .truncate().text_size(11).text_color(projectInk).child(showProjects && project ? project : ""))
+        .child(div().h(14).line_height(14).flex_none().px(5).text_size(11).text_color(labelInk).child(statusLabel[a.status]));
     };
 
     const toggle = (id, label, checked, change) => Switch.new(id).checked(checked).on_change(change)
@@ -343,6 +357,7 @@ export default class Aquarium extends View {
         .child(choices("aquarium-arrangement", "Fish arrangement", free, [[true, "Free-floating"], [false, "Organized"]], value => setShared("aquarium.free", value)))
         .child(choices("aquarium-speed", "Free-floating speed", speed, [["slow", "Slow"], ["normal", "Normal"]], value => setShared("aquarium.speed", value)))
         .child(choices("aquarium-turning", "Turning", turning, [[true, "Smooth"], [false, "Instant"]], value => setShared("aquarium.turning", value)))
+        .child(toggle("aquarium-projects", "Show project names", showProjects, checked => setShared("aquarium.projects", checked)))
         .child(toggle("aquarium-bubbles", "Bubbles", bubbles, checked => setShared("aquarium.bubbles", checked)))
         .child(toggle("aquarium-water", "Surface waves", water, checked => setShared("aquarium.water", checked)))
         .child(toggle("aquarium-night", "Night lighting", night, checked => setShared("aquarium.night", checked))));
@@ -437,7 +452,7 @@ export default class Aquarium extends View {
 
     const schoolTop = (this.controlsHeight ?? 30) + 20;
     const bodyWidth = Math.max(104, this.size.width - 32);
-    const bodyHeight = Math.max(178, this.size.height - 68 - schoolTop);
+    const bodyHeight = Math.max(196, this.size.height - 68 - schoolTop);
     const floatingSchool = floatingSchoolGeometry(bodyWidth, bodyHeight, families);
     const floats = families.map((family, index) => ({ ...family, layout: floatingSchool.layouts[index] }));
     this.syncMotion(floats, free && animate, speed, turning, cx);

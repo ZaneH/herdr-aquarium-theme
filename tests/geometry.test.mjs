@@ -70,10 +70,10 @@ test('oversized families have disjoint full movement envelopes and scroll extent
 });
 
 test('unavoidably overlapping fitting families get distinct stationary vertical bands', () => {
-  // main.js caller: max(104, size.width - 32), max(178, size.height - 118).
-  for (const [size, counts] of [[{ width: 136, height: 296 }, [0, 0]], [{ width: 900, height: 500 }, [9, 9]]]) {
+  // main.js caller: max(104, size.width - 32), max(196, size.height - 118).
+  for (const [size, counts] of [[{ width: 136, height: 314 }, [0, 0]], [{ width: 900, height: 600 }, [9, 9]]]) {
     const width = Math.max(104, size.width - 32);
-    const height = Math.max(178, size.height - 118);
+    const height = Math.max(196, size.height - 118);
     const school = families(counts);
     const raw = school.map(({ leader, children }) => floatingGeometry(width, height, leader.address, children.length));
     assert.ok(raw.every(g => g.width > width / 2 && g.height > height / 2 && g.height <= height));
@@ -96,17 +96,19 @@ test('unavoidably overlapping fitting families get distinct stationary vertical 
 });
 
 test('family bounds contain actual worst-status buttons and every wrapped child row', () => {
-  // drawFish: blocked leader 140+38; blocked child 140*.6+38;
-  // descendants at .48 are smaller. Row gaps are 4, family gap is 8.
+  // Derive the actual three-line target sizes, including attention, instead of
+  // assuming the former two-line allowance. Row gaps are 4, family gap is 8.
   for (let width = 104; width <= 850; width++) {
     for (const count of [1, 2, 3, 6, 31]) {
       const g = floatingGeometry(width, 300, 't1', count);
       const columns = Math.floor((g.broodWidth + 4) / 100);
       const rows = Math.ceil(count / columns);
-      const broodHeight = rows * 122 + (rows - 1) * 4;
+      const leaderHeight = presentation.fishPresentation(g.leaderWidth, 1, true, true).targetHeight;
+      const childHeight = presentation.fishPresentation(96, 0.6, true, true).targetHeight;
+      const broodHeight = rows * childHeight + (rows - 1) * 4;
       assert.ok(columns >= 1);
       assert.ok(g.broodWidth <= g.width);
-      assert.ok(g.height >= (g.stacked ? 178 + 8 + broodHeight : Math.max(178, broodHeight)));
+      assert.ok(g.height >= (g.stacked ? leaderHeight + 8 + broodHeight : Math.max(leaderHeight, broodHeight)));
       assert.ok(g.width >= (g.stacked ? Math.max(g.leaderWidth, g.broodWidth) : g.leaderWidth + 8 + g.broodWidth));
       assert.ok(g.width <= width);
     }
@@ -115,7 +117,7 @@ test('family bounds contain actual worst-status buttons and every wrapped child 
 
 test('resize recomputes independent family bands without dropping an oversized brood', () => {
   const school = families([30, 0, 60]);
-  const narrow = floatingSchoolGeometry(104, 178, school);
+  const narrow = floatingSchoolGeometry(104, 196, school);
   const wide = floatingSchoolGeometry(1200, 800, school);
   assert.ok(narrow.height > wide.height);
   for (const g of [narrow, wide]) {
@@ -183,7 +185,7 @@ test('actual render preserves all child hit targets, paused offsets and resize i
     return nodes.filter(n => n.values.id?.startsWith('family-')).map(n => n.values);
   }
   const narrow = render();
-  assert.ok(narrow[0].top >= 178);
+  assert.ok(narrow[0].top >= 196);
   assert.ok(narrow[2].top > narrow[0].top + narrow[0].h);
   view.size = { width: 1232, height: 918 };
   const wide = render();
@@ -194,7 +196,7 @@ test('actual render preserves all child hit targets, paused offsets and resize i
   render(); // Organized also retains every independently focusable/clickable child.
   assert.ok(nodes.some(n => n.values.w === 120 && 'flex_none' in n.values));
   free = true;
-  for (const [size, counts] of [[{ width: 136, height: 296 }, [0, 0]], [{ width: 900, height: 500 }, [9, 9]]]) {
+  for (const [size, counts] of [[{ width: 136, height: 314 }, [0, 0]], [{ width: 900, height: 600 }, [9, 9]]]) {
     const groups = families(counts);
     agents.splice(0, agents.length, ...groups.flatMap(({ leader, children }) => [leader, ...children.map(c => c.agent)])
       .map(a => ({ ...a, status: 'blocked', title: a.address, program: { name: 'Test' } })));

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { SPECIES, speciesFor, detailsFor, fishAsset, schoolGeometry, newCompletions, schoolFamilies, floatingGeometry, surfaceGeometry } from '../mods/aquarium/model.js';
+import { SPECIES, speciesFor, detailsFor, projectName, fishAsset, schoolGeometry, newCompletions, schoolFamilies, floatingGeometry, surfaceGeometry } from '../mods/aquarium/model.js';
 
 test('fish assignment is stable and every selected sprite exists', () => {
   for (let i = 0; i < 100; i++) {
@@ -18,6 +18,34 @@ test('missing telemetry is honest, and a remote folder is kept as reported', () 
     ['remote/t7', 'Status: blocked', 'Cache: not reported', 'Thinking: not reported']);
   assert.equal(detailsFor({ address: 't1', status: 'idle' }, { cwd: '/home/me/project' }).at(-1),
     'Folder: /home/me/project');
+});
+
+test('project identity prefers native space names, with truthful folder and missing-metadata fallbacks', () => {
+  const spaces = [{ id: 's1', name: 'Named project', folder: '/old/folder', machine: null },
+    { id: 'remote/s1', name: 'Remote project', machine: 'remote' }];
+  const agent = { address: 't1', space: 's1', space_name: 'Earlier name', title: 'Not a project', program: { name: 'Pi' } };
+  assert.equal(projectName(agent, { cwd: '/live/subfolder' }, spaces), 'Named project');
+  assert.equal(projectName(agent, null, []), 'Earlier name', 'native AgentInfo snapshot is a valid fallback');
+  assert.equal(projectName({ address: 'remote/t1' }, { labels: { 'herdr.space': 's1' } }, spaces), 'Remote project');
+  assert.equal(projectName({ address: 't1' }, { labels: { 'herdr.space': 's1' } }, spaces), 'Named project');
+  for (const [cwd, name] of [['/home/me/real-project/', 'real-project'], ['C:\\work\\real-project\\', 'real-project'],
+    ['/home/me/project with spaces', 'project with spaces'], ['/', '/'], ['C:\\', 'C:\\'], ['~', '~']]) {
+    assert.equal(projectName({ address: 'remote/t1' }, { cwd }, spaces), name, cwd);
+  }
+  assert.equal(projectName({ address: 't1', space: 'empty' }, null, [{ id: 'empty', folder: '/fallback/folder' }]), 'folder');
+  assert.equal(projectName({ address: 't1', title: 'Pi', program: { name: 'Pi' } }, null, spaces), null);
+  assert.equal(projectName({ address: 't1', space_name: '  Long\n project  ' }, null, []), 'Long project');
+  assert.ok(detailsFor(agent, null, 'Named project').includes('Project: Named project'));
+});
+
+test('children use their own project first, inherit only an unscoped verified family fallback', () => {
+  const child = { address: 'child' };
+  assert.equal(projectName(child, null, [], 'Parent project'), 'Parent project');
+  assert.equal(projectName(child, { cwd: '/work/different-project' }, [], 'Parent project'), 'different-project');
+  assert.equal(projectName({ ...child, space: 'missing' }, null, [], 'Parent project'), null);
+  assert.equal(projectName(child, { labels: { 'herdr.space': 'missing' } }, [], 'Parent project'), null);
+  assert.equal(projectName({ ...child, space_name: 'Child project' }, null, [], 'Parent project'), 'Child project');
+  assert.equal(projectName(child, null, []), null, 'no family must mean no invented project');
 });
 
 test('motion and status select the right asset, including gold and blocked fish', () => {

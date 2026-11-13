@@ -14,7 +14,8 @@ test('glass approach changes artwork size around its center, never the target or
         assert.ok(front.top >= 0 && back.top >= 0);
         if (free) {
           assert.equal(back.top * 2 + back.size, front.size);
-          assert.ok(front.targetHeight <= (scale === 1 ? 178 : 126));
+          assert.ok(front.targetHeight <= (scale === 1 ? 196 : 140));
+          assert.ok(front.targetHeight - front.size >= 16 + 14 + 14 + 9 + 2, 'all three rows, padding and border fit below the largest artwork');
         }
       }
     }
