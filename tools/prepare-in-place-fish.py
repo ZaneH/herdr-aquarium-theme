@@ -427,6 +427,41 @@ LAYER_PROFILES = {
         poly=[(88, 32), (78, 32), (71, 43), (70, 62), (88, 62)],
         fanmin=78, rootx=78, base=71, amp=2.0, waglen=26.0,
         upperfin=(59, 78, 23, 37)),
+    # Recovered layered fans (mandarinfish/lionfish/silver_arowana below):
+    # geometry recovered from the parent-approved worker art and re-derived
+    # offline from the committed PNGs with pinned Pillow 11.3.0. 'rot' fans
+    # rotate tangentially about a joint, 'sway' drags the veil horizontally,
+    # 'dorsal' (seahorse) flutters the small dorsal fin about its root.
+    ('mandarinfish', 'right'): dict(
+        file='mandarinfish.png', mode='rot',
+        poly=[(58, 56), (79, 56), (79, 75), (56, 75)],
+        joint=(68, 55), ang=0.06, taper=5.0, dmax=1.5),
+    ('mandarinfish', 'left'): dict(
+        file='mandarinfish-left.png', mode='rot',
+        poly=[(18, 58), (43, 58), (43, 77), (17, 77)],
+        joint=(31, 57), ang=0.06, taper=5.0, dmax=1.5),
+    ('lionfish', 'right'): dict(
+        file='lionfish.png', mode='sway',
+        poly=[(24, 57), (70, 57), (70, 82), (18, 82), (18, 63)],
+        A=1.5, y0=55.0, rv=6.0, xa=24.0, xb=70.0, fw=6.0),
+    ('lionfish', 'left'): dict(
+        file='lionfish-left.png', mode='sway',
+        poly=[(30, 57), (72, 57), (72, 82), (30, 82)],
+        A=1.5, y0=55.0, rv=6.0, xa=30.0, xb=72.0, fw=6.0),
+    ('silver_arowana', 'right'): dict(
+        file='silver_arowana.png', mode='rot', capx=(None, 19),
+        poly=[(2, 38), (10, 39), (18, 44), (22, 48), (18, 52), (9, 56), (2, 56)],
+        joint=(20, 48), ang=0.065, taper=4.0, dmax=1.5),
+    ('silver_arowana', 'left'): dict(
+        file='silver_arowana-left.png', mode='rot', capx=(77, None), capy=(36, None),
+        poly=[(93, 34), (93, 60), (78, 60), (73, 48), (78, 42), (81, 34)],
+        joint=(75, 48), ang=0.065, taper=4.0, dmax=1.5),
+    ('seahorse', 'right'): dict(
+        file='seahorse.png', mode='dorsal', root=(35.0, 47.0), amp=0.07, feather=4.0,
+        inbox=lambda x, y: x <= 35 and 36 <= y <= 55, rootdist=lambda x: 35.0 - x),
+    ('seahorse', 'left'): dict(
+        file='seahorse-left.png', mode='dorsal', root=(60.0, 47.0), amp=0.07, feather=4.0,
+        inbox=lambda x, y: x >= 60 and 36 <= y <= 55, rootdist=lambda x: x - 60.0),
 }
 
 
@@ -453,6 +488,26 @@ def _layer_mask(source, prof):
                  and any(x0 <= x <= x1 and y0 <= y <= y1
                          for x0, x1, y0, y1 in prof['bands'])
                  for x in range(SIZE)] for y in range(SIZE)]
+    if prof.get('mode') == 'dorsal':
+        inbox = prof['inbox']
+        return [[bool(px[x, y][3] > 0 and inbox(x, y)) for x in range(SIZE)]
+                for y in range(SIZE)]
+    if 'mode' in prof:
+        # fan: genuine opaque fin pixels inside the polygon (+cap cuts)
+        m = Image.new('L', (SIZE, SIZE), 0)
+        ImageDraw.Draw(m).polygon(prof['poly'], fill=255)
+        mp = m.load()
+        cx0, cx1 = prof.get('capx', (None, None))
+        cy0, cy1 = prof.get('capy', (None, None))
+        mask = [[False] * SIZE for _ in range(SIZE)]
+        for y in range(SIZE):
+            for x in range(SIZE):
+                ok = mp[x, y] > 0 and px[x, y][3] > 0
+                if ok and ((cx0 is not None and x < cx0) or (cx1 is not None and x > cx1)
+                           or (cy0 is not None and y < cy0) or (cy1 is not None and y > cy1)):
+                    ok = False
+                mask[y][x] = ok
+        return mask
     limit = prof.get('fanmax')
     return [[px[x, y][3] > 0 and (x <= limit if limit is not None else x >= prof['fanmin'])
              for x in range(SIZE)] for y in range(SIZE)]
@@ -464,6 +519,53 @@ def _layer_fields(source, mask, prof):
     px = source.load()
     fields = [None] * (SIZE * SIZE)
     maxd = 0.0
+    mode = prof.get('mode')
+    if mode in ('rot', 'sway'):
+        # recovered fans: geometric field on the padded polygon support;
+        # only the moving layer is sampled, so new coverage is genuine fin.
+        pad = _padded_region(prof['poly'])
+        for y in range(SIZE):
+            for x in range(SIZE):
+                if not pad[x, y]:
+                    continue
+                if mode == 'rot':
+                    jx, jy = prof['joint']
+                    rx_, ry_ = x - jx, y - jy
+                    r = math.hypot(rx_, ry_)
+                    d_ = min(prof['ang'] * r, prof['dmax']) * _smoothstep(r / prof['taper'])
+                    maxd = max(maxd, d_)
+                    if r > 0:
+                        fields[y * SIZE + x] = (-ry_ / r, rx_ / r, 0.0, d_)
+                else:
+                    h = _smoothstep((x - prof['xa']) / prof['fw']) * _smoothstep((prof['xb'] - x) / prof['fw'])
+                    d_ = prof['A'] * _smoothstep((y - prof['y0']) / prof['rv']) * h
+                    maxd = max(maxd, d_)
+                    fields[y * SIZE + x] = (1.0, 0.0, 0.0, d_)
+        return fields, maxd
+    if mode == 'dorsal':
+        # seahorse: support is the dilated mask itself, minus protected
+        # occupied source coords; tangential flutter about the fin root.
+        m = Image.new('L', (SIZE, SIZE), 0)
+        for y in range(SIZE):
+            for x in range(SIZE):
+                if mask[y][x]:
+                    m.putpixel((x, y), 255)
+        support = m.filter(ImageFilter.MaxFilter(7)).load()
+        rx, ry = prof['root']
+        for y in range(SIZE):
+            for x in range(SIZE):
+                if not support[x, y]:
+                    continue
+                if px[x, y][3] > 0 and not mask[y][x]:
+                    continue  # protected bony trunk/head/tail
+                w = _smoothstep(prof['rootdist'](x) / prof['feather'])
+                dx, dy = x - rx, y - ry
+                r = math.hypot(dx, dy)
+                d_ = prof['amp'] * r * w
+                maxd = max(maxd, d_)
+                if r > 0 and d_ > 0:
+                    fields[y * SIZE + x] = (-dy / r, dx / r, 0.0, d_)
+        return fields, maxd
     if 'bands' in prof:  # sunfish: coherent tangential rotation per fin joint
         pad = _padded_region(prof['bands'])
         jd, ja, ang, off = prof['joints'][0], prof['joints'][1], prof['ang'], prof['off']

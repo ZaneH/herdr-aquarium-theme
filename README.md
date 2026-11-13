@@ -72,7 +72,7 @@ Keyboard: lowercase `f` is bound to `aquarium.feed` under the tank's `Aquarium` 
 To test by hand: deploy the mod, open the aquarium, turn **Animate aquarium** and **Free-floating** on in Options (otherwise Feed is disabled and its tooltip says so), keep at least one **idle or working** family eligible (held/hovered, blocked and done fish do not feed), move the pointer off the fish, put the keyboard in the tank (click a tank control, e.g. Feed), press `f` (or click Feed): the label flips to **Feeding…** and a pellet appears mid-tank; at Slow speed wait out the native transition legs while up to three families steer toward it; after ten seconds the pellet expires and the label returns to **Feed**. Feed again only after it expires — one pellet at a time.
 
 The source sheets are **camera rotations, not fin-flapping animation**.
-Free-floating now has **20 animated species**: the eleven reviewed tail-loop fish,
+Free-floating now has **24 animated species**: the eleven reviewed tail-loop fish,
 **moray eel** (curled body undulating around a fixed head), three flowing-fin
 species — **betta, fancy goldfish, freshwater angelfish** — whose fixed torso and
 head stay byte-exact while the surrounding fins flow through a bounded 2 px warp,
@@ -83,7 +83,12 @@ about the measured peduncle root while the head and trunk stay byte-exact, and t
 layered-fin species — **ocean sunfish, inflated pufferfish** — where only the actual
 fin layer is warped (the sunfish's dorsal and anal fins; the puffer's caudal fan) and
 the protected body, clavus and upper fin are restored byte-exact, so no ghost body
-or frozen fin outline can appear.
+or frozen fin outline can appear, and four more layered loops recovered from
+approved offline art — **mandarinfish** (large foreground pectoral fan), **lionfish**
+(lower pectoral veil and inseparable anal/pelvic mass), **silver arowana** (caudal fan
+only, long dorsal/anal tips still) and **seahorse** (small dorsal fin flutter only,
+bony trunk and curled tail still), all through the same moving-layer renderer with
+tangential flex rather than exact rigid rotation.
 Eel left/right loops and still/gold fallbacks use matched, mirrored side artwork so
 it faces its route correctly. The tail-loop species retain their fixed bodies and
 bounded caudal motion; the eel deliberately allows body deformation; the fin
@@ -94,7 +99,7 @@ All loops use twelve intended 100 ms slots. The WebP encoder may coalesce identi
 frames, but the decoded 1200 ms timeline is tested slot by slot. Enable Animate
 aquarium to use supported working/idle loops; hovering holds travel while the
 in-place animation can continue. Paused/inactive/blocked/done fish use still/gold
-art. **5 species remain still** while work continues toward all 25; see
+art. **1 species (flounder) remains still** while work continues toward all 25; see
 [animation coverage](docs/animation-coverage.md). Organized keeps the original
 travelling/turning clips. These are procedural 2D loops, not restored authored
 swimming or 3D rotations. Shipped in-place artwork is reviewed offline; native
@@ -140,7 +145,7 @@ herdr-app status
 herdr-app shot /tmp/aquarium.png
 ```
 
-52 Node tests cover discovery/families, stable species and placement, heading versus displacement, geometry, navigation dispatch, native control descriptions, and scheduler cleanup. Eight Python checks cover assets, wave tiling and reproducible gallery pixels. These are not human input acceptance.
+103 Node tests cover discovery/families, stable species and placement, heading versus displacement, geometry, navigation dispatch, native control descriptions, and scheduler cleanup. 29 Python checks cover assets, animation coverage, wave tiling and reproducible gallery pixels. These are not human input acceptance.
 
 A [controlled live pass](docs/native-live-validation.md) displayed three genuine pane-less children and the brighter habitat. Native captures cover a five-fish workspace at Normal/Smooth and two real root species at both speeds/turn modes (136 frames at 1 Hz); no sustained backwards-facing mismatch was found on clear sampled legs. That sampling does not establish fade smoothness, frame pacing, hit comfort, keyboard behavior, every species/status, or complete lifecycle acceptance. Raw child navigation was corrected after `agent.focus` failed live: the native terminal-peek endpoint opened the correct worker, while physical Button activation remains untested.
 

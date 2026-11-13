@@ -544,11 +544,23 @@ test('picker preview follows the choice with honest motion labels and full gatin
   }
   leader.status = 'working';
 
-  // A still-only species stays honest even with motion on.
-  const still = preview(new Map([...moving, [key, 'lionfish']]));
-  assert.ok(still.asset.endsWith('/lionfish.png'), still.asset);
-  assert.equal(still.note, 'Still portrait');
-  assert.equal(still.name, 'Lionfish');
+  // The recovered layered lionfish now previews its fin loop under the same
+  // helper and gating; the earlier still-only preview case is obsolete.
+  const lion = preview(new Map([...moving, [key, 'lionfish']]));
+  assert.equal(lion.asset, 'mods/aquarium/assets/lionfish-fin-right.webp');
+  assert.equal(lion.note, 'Swim animation');
+  assert.equal(lion.name, 'Lionfish');
+  assert.equal(lion.asset,
+    `mods/aquarium/assets/${model.fishAsset(leader, false, true, 't1', true, 'right', 'lionfish')}`);
+  // A legitimately paused or blocked leader still shows the still portrait.
+  const lionPaused = preview(new Map([['aquarium.paused', true], ['aquarium.free', true], [key, 'lionfish']]));
+  assert.ok(lionPaused.asset.endsWith('/lionfish.png'), lionPaused.asset);
+  assert.equal(lionPaused.note, 'Still portrait');
+  leader.status = 'blocked';
+  const lionBlocked = preview(new Map([...moving, [key, 'lionfish']]));
+  assert.ok(lionBlocked.asset.endsWith('/lionfish.png'), lionBlocked.asset);
+  assert.equal(lionBlocked.note, 'Still portrait');
+  leader.status = 'working';
 
   // Automatic resolves through the family leader's address, not the opener's.
   const automatic = preview(new Map(moving));

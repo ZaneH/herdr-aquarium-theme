@@ -135,7 +135,7 @@ const IN_PLACE_TAIL = new Set(["clownfish", "blue_tang", "koi", "largemouth_bass
 // Layered fin loops (ocean_sunfish, pufferfish_inflated) use the same stem:
 // only the actual appendage layer is warped; the protected body is restored.
 const IN_PLACE_FIN = new Set(["betta", "fancy_goldfish", "freshwater_angelfish", "manta_ray",
-  "ocean_sunfish", "pufferfish_inflated"]);
+  "ocean_sunfish", "pufferfish_inflated", "mandarinfish", "lionfish", "silver_arowana", "seahorse"]);
 // Caudal-joint loops: sharks rotate their whole caudal silhouette about the
 // measured peduncle root. The still and gold PNG poses already face correctly
 // on both sides, so they are reused as-is for paused/blocked/done fallbacks.

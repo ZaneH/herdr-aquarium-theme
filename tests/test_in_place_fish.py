@@ -512,6 +512,15 @@ class CaudalJointTests(unittest.TestCase):
 
 LAYER_SPECIES = ('ocean_sunfish', 'pufferfish_inflated')
 LAYER_NEW_ASSETS = tuple(f'{s}-fin-{f}.webp' for s in LAYER_SPECIES for f in ('right', 'left'))
+# The recovered fan/dorsal batch (mandarinfish, lionfish, silver_arowana,
+# seahorse) has its own gates below: frame 0 IS the source still (no phase
+# offset), only 7 of 12 states are visibly distinct, and lionfish may merge
+# its fringe component mid-cycle, so the Sun/Puf gates must not be applied.
+RECOVERED_SPECIES = ('mandarinfish', 'lionfish', 'silver_arowana', 'seahorse')
+RECOVERED_KEYS = tuple((s, f) for s in RECOVERED_SPECIES for f in ('right', 'left'))
+RECOVERED_NEW_ASSETS = tuple(f'{s}-fin-{f}.webp' for s in RECOVERED_SPECIES for f in ('right', 'left'))
+# Only these keys keep the Sun/Puf gates (bands/clavus/upperfin, phase offset).
+OLD_LAYER_KEYS = tuple((s, f) for s in LAYER_SPECIES for f in ('right', 'left'))
 
 
 def _layer_taps(x, y, field, theta):
@@ -526,6 +535,16 @@ def _layer_taps(x, y, field, theta):
     x1, y1 = min(x0 + 1, 95), min(y0 + 1, 95)
     return ((x0, y0, (1 - fx) * (1 - fy)), (x1, y0, fx * (1 - fy)),
             (x0, y1, (1 - fx) * fy), (x1, y1, fx * fy))
+
+
+def _sample_layer_taps(moving, taps):
+    colors = [(moving.getpixel((x, y)), weight) for x, y, weight in taps]
+    alpha = sum(color[3] * weight for color, weight in colors)
+    if round(alpha) == 0:
+        return (0, 0, 0, 0)
+    rgb = tuple(round(sum(color[c] * color[3] * weight for color, weight in colors) / alpha)
+                for c in range(3))
+    return rgb + (round(alpha),)
 
 
 class LayeredFinTests(unittest.TestCase):
@@ -554,7 +573,7 @@ class LayeredFinTests(unittest.TestCase):
                  max(p[0] for p in px) + 4, max(p[1] for p in px) + 4)]
 
     def test_layer_split_bounds_and_protected_pixels(self):
-        for key in prepare.LAYER_PROFILES:
+        for key in OLD_LAYER_KEYS:
             prof, source, mask, fields, maxd, moving = self._parts(key)
             sp, mp = source.load(), moving.load()
             before = (ROOT / f'mods/aquarium/assets/{prof["file"]}').read_bytes()
@@ -601,7 +620,7 @@ class LayeredFinTests(unittest.TestCase):
             self.assertEqual((ROOT / f'mods/aquarium/assets/{prof["file"]}').read_bytes(), before)
 
     def test_new_pixels_come_only_from_the_fin_layer_and_gain_contour(self):
-        for key in prepare.LAYER_PROFILES:
+        for key in OLD_LAYER_KEYS:
             prof, source, mask, fields, maxd, moving = self._parts(key)
             sp, mp = source.load(), moving.load()
             frames = prepare.layer_frames(source, *key)
@@ -621,10 +640,13 @@ class LayeredFinTests(unittest.TestCase):
                             # alpha reads the moving fin layer only, never
                             # fixed anatomy (ghost) or source-alpha gating.
                             f = fields[y * 96 + x]
-                            if f is not None and f[3] > 0:
-                                for tx, ty, _wt in _layer_taps(x, y, f, theta):
-                                    if not mask[ty][tx]:
-                                        self.assertEqual(mp[tx, ty][3], 0)
+                            self.assertIsNotNone(f)
+                            self.assertGreater(f[3], 0)
+                            taps = _layer_taps(x, y, f, theta)
+                            self.assertEqual(fp[x, y], _sample_layer_taps(moving, taps))
+                            for tx, ty, _wt in taps:
+                                if not mask[ty][tx]:
+                                    self.assertEqual(mp[tx, ty][3], 0)
             # each appendage honestly gains contour (not a checksum proxy)
             self.assertEqual(len(gained), 2 if 'bands' in prof else 1)
             for count in gained:
@@ -684,7 +706,187 @@ class LayeredFinTests(unittest.TestCase):
         cases = [(Image.new('RGBA', (10, 10)), 'ocean_sunfish', 'right'),
                  (Image.new('RGBA', (96, 96)), 'ocean_sunfish', 'up'),
                  (Image.new('RGBA', (96, 96)), 'flounder', 'right'),
-                 (Image.new('RGBA', (96, 96)), 'lionfish', 'left')]
+                 (Image.new('RGBA', (96, 96)), 'clownfish', 'left')]
         for image, species, facing in cases:
+            with self.assertRaises(ValueError):
+                prepare.layer_frames(image, species, facing)
+
+
+def _visible_states(frames):
+    """Count visibly distinct frames; RGB under alpha 0 never counts."""
+    keys = set()
+    for frame in frames:
+        black = Image.alpha_composite(Image.new('RGBA', frame.size, 'black'), frame)
+        white = Image.alpha_composite(Image.new('RGBA', frame.size, 'white'), frame)
+        keys.add((frame.getchannel('A').tobytes(), black.tobytes(), white.tobytes()))
+    return len(keys)
+
+
+class RecoveredFinTests(unittest.TestCase):
+    """Recovered layered loops (mandarinfish/lionfish/silver_arowana fans and
+    the seahorse dorsal flutter): the same layer_frames renderer with exact
+    recovered geometry. Unlike Sun/Puf these have no phase offset, so frame 0
+    IS the source still, only 7 of 12 states are visibly distinct, and the
+    lionfish's inseparable fringe component may merge into the main silhouette
+    mid-cycle, so component parity must not be falsely asserted for it."""
+
+    def _parts(self, key):
+        prof = prepare.LAYER_PROFILES[key]
+        with Image.open(ROOT / f'mods/aquarium/assets/{prof["file"]}') as handle:
+            source = handle.convert('RGBA')
+        mask = prepare._layer_mask(source, prof)
+        fields, maxd = prepare._layer_fields(source, mask, prof)
+        moving = Image.new('RGBA', (96, 96), (0, 0, 0, 0))
+        mp, sp = moving.load(), source.load()
+        for y in range(96):
+            for x in range(96):
+                if mask[y][x]:
+                    mp[x, y] = sp[x, y]
+        return prof, source, mask, fields, maxd, moving
+
+    def test_recovered_split_protection_bounds_and_period(self):
+        for key in RECOVERED_KEYS:
+            prof, source, mask, fields, maxd, moving = self._parts(key)
+            sp, mp = source.load(), moving.load()
+            source_path = ROOT / f'mods/aquarium/assets/{prof["file"]}'
+            before = source_path.read_bytes()
+            static_px = [(x, y) for y in range(96) for x in range(96)
+                         if sp[x, y][3] > 0 and not mask[y][x]]
+            self.assertGreater(sum(1 for y in range(96) for x in range(96) if mask[y][x]), 50)
+            self.assertGreater(len(static_px), 500)
+            # moving input is zero at every protected coordinate; the moving
+            # layer is a byte-exact copy of the source at mask coordinates.
+            for x, y in static_px:
+                self.assertEqual(mp[x, y][3], 0)
+            for y in range(96):
+                for x in range(96):
+                    if mask[y][x]:
+                        self.assertEqual(mp[x, y], sp[x, y])
+            # approved bounds: fans capped at their dmax (1.5 px), seahorse at
+            # its measured sub-1.25 px flutter; never above the 2 px cap.
+            cap = prof.get('dmax', prof.get('A', 1.25))
+            self.assertLessEqual(maxd, cap + 1e-9)
+            self.assertLessEqual(maxd, 2.0 + 1e-9)
+            frames = prepare.layer_frames(source, *key)
+            self.assertEqual(len(frames), 12)
+            # frame 0 is the source still (visible; phase-0 sine) and the
+            # field has period 12. Only 7 states are visibly distinct.
+            self.assertTrue(composited_equal(frames[0], source), key)
+            self.assertEqual(prepare.layer_frames(source, *key, 13)[12], frames[0])
+            self.assertEqual(_visible_states(frames), 7)
+            # the fin is not left static and the source has binary alpha only;
+            # any fractional alpha in the frames is honest interpolation AA.
+            self.assertGreater(changed_opaque_pixels(frames[3], source), 0)
+            self.assertLessEqual({sp[x, y][3] for y in range(96) for x in range(96)}, {0, 255})
+            aa = {frames[i].load()[x, y][3] for i in range(1, 12)
+                  for y in range(96) for x in range(96) if 0 < frames[i].load()[x, y][3] < 255}
+            self.assertTrue(aa, 'no interpolated AA in any moving frame')
+            for frame in frames:
+                fp = frame.load()
+                for x, y in static_px:
+                    self.assertEqual(fp[x, y], sp[x, y])
+                for perimeter in [(0, 0, 96, 1), (0, 95, 96, 96), (0, 0, 1, 96), (95, 0, 96, 96)]:
+                    self.assertIsNone(frame.getchannel('A').crop(perimeter).getbbox())
+            self.assertEqual(source_path.read_bytes(), before)
+
+    def test_recovered_gain_contour_provenance_and_components(self):
+        for key in RECOVERED_KEYS:
+            prof, source, mask, fields, maxd, moving = self._parts(key)
+            sp, mp = source.load(), moving.load()
+            frames = prepare.layer_frames(source, *key)
+            pixels = [(x, y) for y in range(96) for x in range(96) if mask[y][x]]
+            x0, y0 = max(0, min(p[0] for p in pixels) - 4), max(0, min(p[1] for p in pixels) - 4)
+            x1, y1 = min(95, max(p[0] for p in pixels) + 4), min(95, max(p[1] for p in pixels) + 4)
+            src_a = source.getchannel('A').point(lambda a: 255 if a >= 16 else 0)
+            gained = lost = 0
+            for i in (3, 9):
+                theta = math.tau * i / 12
+                fp = frames[i].load()
+                for y in range(y0, y1 + 1):
+                    for x in range(x0, x1 + 1):
+                        in_src, in_out = src_a.load()[x, y], fp[x, y][3] >= 16
+                        if in_out and not in_src:
+                            gained += 1
+                            # provenance: every sampler tap that carries any
+                            # alpha reads the moving fin layer only, never
+                            # fixed anatomy and never a source-alpha gate.
+                            f = fields[y * 96 + x]
+                            self.assertIsNotNone(f)
+                            self.assertGreater(f[3], 0)
+                            taps = _layer_taps(x, y, f, theta)
+                            self.assertEqual(fp[x, y], _sample_layer_taps(moving, taps))
+                            for tx, ty, _wt in taps:
+                                if not mask[ty][tx]:
+                                    self.assertEqual(mp[tx, ty][3], 0)
+                        elif in_src and not in_out:
+                            lost += 1
+            self.assertGreater(gained, 0)
+            if prof['mode'] == 'dorsal':
+                # sub-pixel flutter: AA keeps the old edge above the 16
+                # threshold, so an honest loop may lose nothing at all.
+                self.assertEqual(lost, 0)
+            else:
+                self.assertGreater(lost, 0)
+            # every opaque (>=128) source pixel stays within 3 px (MaxFilter 7)
+            # of alpha >= 16 in every frame.
+            src_opaque = source.getchannel('A').point(lambda a: 255 if a >= 128 else 0)
+            for frame in frames:
+                dilated = frame.getchannel('A').point(lambda a: 255 if a >= 16 else 0) \
+                    .filter(ImageFilter.MaxFilter(7))
+                for y in range(96):
+                    for x in range(96):
+                        if src_opaque.load()[x, y]:
+                            self.assertGreaterEqual(dilated.load()[x, y], 16)
+            # honest silhouette components at both thresholds: no species ever
+            # grows components; the lionfish fringe can merge (2->1 right,
+            # 3->2 left) because its anal/pelvic mass is inseparable.
+            for thresh in (16, 128):
+                expected = alpha_components(source, thresh)
+                counts = {alpha_components(frame, thresh) for frame in frames}
+                self.assertLessEqual(max(counts), expected)
+                if key[0] == 'lionfish':
+                    self.assertLess(min(counts), expected, 'fringe never merges')
+                    self.assertGreaterEqual(min(counts), 1)
+                else:
+                    self.assertEqual(counts, {expected})
+
+    def test_recovered_committed_assets_are_reproducible_and_timelines_match(self):
+        sources = [ROOT / f'mods/aquarium/assets/{p["file"]}'
+                   for (s, f), p in prepare.LAYER_PROFILES.items() if (s, f) in RECOVERED_KEYS]
+        hashes = {p: hashlib.sha256(p.read_bytes()).digest() for p in sources}
+        with tempfile.TemporaryDirectory() as temp:
+            prepare.build(temp)
+            for name in RECOVERED_NEW_ASSETS:
+                generated = Path(temp) / name
+                committed = ROOT / 'mods/aquarium/assets' / name
+                self.assertEqual(generated.read_bytes(), committed.read_bytes(), name)
+                species, _, facing = name[:-5].partition('-fin-')
+                prof = prepare.LAYER_PROFILES[(species, facing)]
+                with Image.open(ROOT / f'mods/aquarium/assets/{prof["file"]}') as src_handle:
+                    source = src_handle.convert('RGBA')
+                    intended = prepare.layer_frames(source, species, facing)
+                durations = frame_durations(generated)
+                with Image.open(generated) as clip:
+                    self.assertTrue(clip.is_animated)
+                    self.assertEqual(clip.size, (96, 96))
+                    self.assertEqual(clip.info['loop'], 0)
+                    self.assertEqual(sum(durations), 1200)
+                    self.assertTrue(all(d > 0 and d % 100 == 0 for d in durations))
+                    slot = 0
+                    for i, duration in enumerate(durations):
+                        clip.seek(i)
+                        frame = clip.convert('RGBA')
+                        for _ in range(duration // 100):
+                            self.assertTrue(composited_equal(frame, intended[slot]),
+                                            f'{species} {facing} slot {slot}')
+                            slot += 1
+                    self.assertEqual(slot, 12)
+        self.assertEqual(hashes, {p: hashlib.sha256(p.read_bytes()).digest() for p in sources})
+
+    def test_recovered_invalid_species_facing_and_size_are_rejected(self):
+        for image, species, facing in [
+                (Image.new('RGBA', (10, 10)), 'mandarinfish', 'right'),
+                (Image.new('RGBA', (96, 96)), 'seahorse', 'up'),
+                (Image.new('RGBA', (96, 96)), 'moray_eel', 'right')]:
             with self.assertRaises(ValueError):
                 prepare.layer_frames(image, species, facing)

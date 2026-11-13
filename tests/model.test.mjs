@@ -150,10 +150,12 @@ test('moray eel: floating body wave from mirrored canonical side art, stills mat
 });
 
 test('flowing-fin species loop from their own stills, fallbacks reuse norm/gold poses', () => {
-  // The layered sunfish/puffer loops share the -fin- stem: only the appendage
-  // layer animates; the protected body stays byte-exact.
+  // The layered loops share the -fin- stem: only the appendage layer
+  // animates; the protected body stays byte-exact. The recovered batch adds
+  // mandarinfish/lionfish/silver_arowana fans and the seahorse dorsal flutter.
   for (const species of ['betta', 'fancy_goldfish', 'freshwater_angelfish', 'manta_ray',
-    'ocean_sunfish', 'pufferfish_inflated']) {
+    'ocean_sunfish', 'pufferfish_inflated', 'mandarinfish', 'lionfish',
+    'silver_arowana', 'seahorse']) {
     for (const face of ['left', 'right']) for (const turning of [true, false]) {
       for (const status of ['working', 'idle', 'blocked', 'done', 'unknown']) for (const paused of [true, false]) {
         const asset = fishAsset({ address: 'child', status }, paused, turning, 'leader', true, face, species);

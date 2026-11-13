@@ -6,15 +6,16 @@ head/facing, and vertical column shear capped at two pixels, tapering to zero at
 measured caudal-fin boundary; for the moray eel a full body-undulation wave (its own
 profile, below); for the four flowing-fin species a fixed torso/head core with a
 bounded 2D fin warp (its own profile, below); for the two sharks a caudal-joint
-rotation about the measured peduncle root (its own profile, below); for the sunfish
-and inflated puffer a layered appendage split that warps only the actual fin layer
-(its own profile, below). Twelve source frames at 100 ms, no new
+rotation about the measured peduncle root (its own profile, below); for the six
+layered species — ocean sunfish, inflated puffer, mandarinfish, lionfish, silver
+arowana and seahorse — a layered appendage split that warps only the actual fin
+layer (its own profile, below). Twelve source frames at 100 ms, no new
 runtime clock or masking view. The WebP encoder may coalesce identical consecutive source frames
 into longer encoded frames; the decoded 1200 ms timeline must still match the intended
 frame at every 100 ms slot. The tail species' still/gold PNG fallbacks and all Organized
 travelling clips are unchanged; the eel gets matched canonical side fallbacks; the fin
 species reuse their existing norm/gold stills as-is; the sharks reuse theirs too.
-20 species are now animated; 5 remain still.
+24 species are now animated; 1 (flounder) remains still.
 
 "Not shipped" means not added in this batch. It does not mean a species cannot be animated.
 The tail-only algorithm cannot separate fins that share the same image columns; future
@@ -163,20 +164,67 @@ travelling clips are unchanged; the earlier rejected whole-source-sampler and
 wing-rig trials for these two species are history, not production. Native in-app
 visual acceptance stays open, like every species.
 
+## Shipped recovered layered fins (4): mandarinfish, lionfish, silver_arowana, seahorse
+
+The recovered batch reuses the same moving-layer renderer (only the genuine
+appendage pixels are warped; every other occupied source pixel is restored
+RGBA byte-exact), with exact geometry recovered from parent-approved offline
+art and regenerated from the committed PNGs with pinned Pillow 11.3.0. These
+profiles have no phase offset, so frame 0 IS the source still, and only 7 of the
+12 states are visibly distinct because sine symmetry repeats poses across the cycle. Displacement fields live on the polygon/mask support
+dilated by MaxFilter 7; fans are capped at 1.5 px, the seahorse flutter at its
+measured 1.19/1.25 px bounds.
+
+**Mandarinfish** animates only the large foreground pectoral fan: tangential
+flex about the measured joint (68,55 right / 31,57 left), displacement
+`min(0.06·r, 1.5)·smoothstep(r/5)` along the perpendicular of the joint radius.
+This is a tangential flex field, not an exact rigid rotation — pixels move
+along the local tangent with a radial taper, so the fan tips sweep while the
+root stays put; the head, trunk and tail stay static. Source alpha is binary
+(0/255); the frames gain honest fractional AA from interpolation only.
+
+**Lionfish** sways its lower pectoral veil and the inseparable anal/pelvic mass
+horizontally (`d = 1.5·smoothstep((y−55)/6)·smoothstep(x-ramp)` inside the
+measured polygon), with the head, trunk, poison spikes and tail fan static.
+The isolated fringe dot can merge into the main silhouette mid-cycle (2→1
+right, 3→2 left); that merge is genuine shared fin tissue, not a parity bug,
+so component parity is never asserted for it. The right facing's five-point
+polygon and the left facing's rectangle are each measured on their own still.
+
+**Silver arowana** flexes only the caudal fan tangentially about its peduncle
+joint (20,48 right / 75,48 left), capped by the measured cap columns so the
+long dorsal and anal fin tips stay completely still. Its earlier column-shear
+reject below is history: the shear boundary crossed those trailing tips, but
+the layered mask excludes them, so it is not a current blocker.
+
+**Seahorse** flutters only the small cream dorsal fin about its root
+(35,47 right / 60,47 left, `d = 0.07·r·smoothstep(rootdist/4)`), on a support
+that skips every protected occupied source coordinate, so the head, snout,
+bony trunk and curled tail never move. The flutter is sub-pixel at the tip
+(≈0.9 px), so the loop gains contour but honestly loses none at the alpha-16
+threshold; it is stylized hovering, not a claim of real fin frequency.
+
+Loops: `<species>-fin-{right,left}.webp`, byte-identical to the eight approved
+offline clips. Still/gold PNG fallbacks and Organized travelling clips are
+unchanged. Native in-app appearance, input and performance acceptance remains
+unverified, including reduced-motion behavior.
+
 ## Rejected column-shear trials (1, historical)
 
 History: the sharks were first tried as column-shear tail loops and rejected
 with visible defects (a rubbery hinge sliding both lobes against the narrow
 peduncle on the great white, and a detached, hooked lower lobe on the
 hammerhead, whose lobes are only a few pixels thick). They have since shipped
-with the caudal-joint rotation above; the rows below are the remaining
-reject of that older algorithm. Missing source assets are not the blocker.
+with the caudal-joint rotation above; the row below is history too: the silver
+arowana shear reject was superseded by its shipped recovered layered loop
+above, and its column-shear defect is not a current blocker. Missing source
+assets are not the blocker.
 
 | species | evidence | concrete blocker | what would help |
 |---|---|---|---|
 | silver_arowana | 21/78 | the band boundary crosses the trailing tips of the long dorsal and anal fins. Shear moves those fin tips with the caudal fan, leaving a visible one-to-two-pixel step at the boundary in both facings. | A tail-only mask that excludes the dorsal/anal tips, or art with a clear peduncle. Moving the edge inward would shear more body. |
 
-## Not shipped: distinct anatomy, no separable caudal fin (4)
+## Not shipped: distinct anatomy, no separable caudal fin (1)
 
 These fail the tail algorithm's first assumption: there is no discrete caudal fin, or a different
 fin (pectoral, dorsal, anal, fringe) occupies the same columns. Shearing the band would
@@ -185,13 +233,11 @@ fin motion artwork or a fin mask/rig, not a different edge number. The moray eel
 moved to the shipped body wave above; betta, fancy_goldfish and freshwater_angelfish
 moved to the shipped flowing fins above; manta_ray moved to the shipped wing-flap
 profile above; the sharks moved to the shipped caudal-joint profile above; the
-sunfish and puffer moved to the shipped layered profile above.
+sunfish and puffer moved to the shipped layered profile above; mandarinfish, lionfish,
+silver_arowana and seahorse moved to the shipped recovered layered profile above.
 
 | species | concrete reason |
 |---|---|
-| mandarinfish | huge pectoral fan occupies the tail columns and would shear with the tail |
-| lionfish | giant fan pectoral fin overlaps the caudal band |
-| seahorse | vertical posture and prehensile tail, no caudal fin |
 | flounder | top-down oval with a continuous fin fringe; no discrete caudal fin |
 
 ## What a future batch would need
