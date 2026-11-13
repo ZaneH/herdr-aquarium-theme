@@ -5,6 +5,7 @@ import { runInNewContext } from 'node:vm';
 import * as model from '../mods/aquarium/model.js';
 import * as presentation from '../mods/aquarium/presentation.js';
 import * as motion from '../mods/aquarium/motion.js';
+import { nativeProjects } from './fixtures/native-project-metadata.mjs';
 
 // Builder/callback contract check, NOT a native keyboard or layout acceptance test.
 const source = readFileSync(new URL('../mods/aquarium/main.js', import.meta.url), 'utf8')
@@ -566,6 +567,46 @@ test('project labels default on, persist off across fresh layouts, and never res
   }
 });
 
+// Installed gpui-kit.d.ts:1362–1363: numbers multiply the font size;
+// only a length string is absolute. This models that contract, NOT native paint.
+function assertLabelLinesFit(fish) {
+  const rows = fish.childNodes.slice(1);
+  assert.deepEqual(rows.map(row => row.values.h), [16, 14, 14]);
+  for (const row of rows) {
+    const text = row.childNodes.find(child => child?.values?.text_size) ?? row;
+    const size = text.values.text_size;
+    const height = text.values.line_height ?? row.values.line_height ?? fish.values.line_height;
+    assert.equal(typeof height, 'number', 'fixed rows use a known inherited font-size multiplier');
+    const linePixels = height * size;
+    assert.ok(linePixels <= row.values.h, `${size}px × ${height} = ${linePixels}px must fit ${row.values.h}px row`);
+    assert.ok('flex_none' in row.values, 'rows cannot shrink under the text');
+  }
+  const art = fish.childNodes[0];
+  const labelHeight = rows.reduce((sum, row) => sum + row.values.h, 0);
+  assert.ok(art.values.top + art.values.h + labelHeight + fish.values.pb + 2 <= fish.values.h,
+    'documented line boxes and artwork fit inside the bordered hit target');
+}
+
+test('native multiplier semantics keep single and family labels compact in both layouts and lighting modes', () => {
+  for (const agents of [nativeProjects.agents.slice(0, 1), nativeProjects.agents]) {
+    const data = { ...nativeProjects, agents, terminals: agents.length === 1 ? [] : nativeProjects.terminals };
+    for (const free of [true, false]) for (const night of [true, false]) for (const immersive of [true, false]) {
+      const settings = new Map([['aquarium.free', free], ['aquarium.night', night]]);
+      const f = fixture(settings, immersive, undefined, data);
+      delete f.view.syncMotion;
+      const nodes = f.render();
+      for (const [address, project] of Object.entries({ t2: 'herdr-aquarium-theme',
+        ...(agents.length > 1 ? { t4j: 'piano-trainer-next', 'nixos/t2': 'proxmox-image', t6s: 'herdr-aquarium-theme', t6r: 'piano-trainer-next' } : {}) })) {
+        const fish = nodes.get(`fish-${address}`);
+        assertLabelLinesFit(fish);
+        assert.equal(nodes.get(`project-${address}`).childNodes[0], project);
+        assert.equal(fish.childNodes.at(-1).childNodes[0], address.startsWith('t6') ? 'Working' : 'Resting');
+      }
+      assert.equal(settings.size, 2, 'render does not override saved preferences');
+    }
+  }
+});
+
 test('actual project rows resolve children truthfully and stay within narrow/organized/free targets', () => {
   const program = { name: 'Pi', agent: true, shell: false };
   const leader = { address: 't1', space: 's1', title: 'Agent title is not a project', status: 'blocked', program };
@@ -589,13 +630,10 @@ test('actual project rows resolve children truthfully and stay within narrow/org
       assert.ok(row.values.w <= fish.values.w - 12, 'bounded within existing hit width');
       assert.ok('truncate' in row.values && 'flex_none' in row.values);
       assert.equal(row.values.h, 14);
-      assert.equal(row.values.line_height, 14);
+      assert.equal(row.values.line_height, undefined, 'no per-row multiplier masquerading as pixels');
       assert.equal(row.values.text_size, 11);
       assert.equal(row.values.font_semibold, undefined, 'project is quieter than personal name');
-      const art = fish.childNodes[0];
-      const artBottom = art.values.top + art.values.h;
-      const labelHeight = fish.childNodes.slice(1).reduce((sum, n) => sum + n.values.h, 0);
-      assert.ok(artBottom + labelHeight + 9 + 2 <= fish.values.h, 'three rows clear even blocked artwork');
+      assertLabelLinesFit(fish);
       assert.ok(!fish.values.tooltip.includes('undefined'));
     }
   }

@@ -302,8 +302,9 @@ export default class Aquarium extends View {
           el.child(image(`${ART}/shimmer.svg`).id(`shimmer-${a.address}`).absolute()
             .top((fishSize - haloSize) / 2).left((fishSize - haloSize) / 2).size(haloSize)
             .loop("opacity", { from: 0.15, to: 0.9, period: 1200 })));
+      // Numeric line height multiplies each font size; keep glyph lines inside the fixed label rows.
       return Button.new(`fish-${a.address}`).tab_index(tabIndex++).relative().w(width).h(presentation.targetHeight).flex_none()
-        .flex().flex_col().items_center().justify_end().pb(9)
+        .flex().flex_col().items_center().justify_end().pb(9).line_height(1)
         .border(1).border_color("#00000000").focus(s => s.border_color(night ? labelInk : tankInk.background))
         .accessibility_label(`${name}, ${statusLabel[a.status]}. ${d.join(". ")}. Open agent.`)
         .tooltip(`${name}\n${d.join("\n")}\nClick to open agent`)
@@ -315,13 +316,13 @@ export default class Aquarium extends View {
         })
         .on_click(() => { this.inspected = a.address; open(a); })
         .child(fish)
-        .child(h_flex().h(16).line_height(16).flex_none().gap(5).items_center().px(5).text_color(labelInk)
+        .child(h_flex().h(16).flex_none().gap(5).items_center().px(5).text_color(labelInk)
           .child(div().size(6).rounded_full().bg(color))
           .child(div().max_w(width - 24).truncate().text_size(12).font_semibold()
             .child(`${leader !== a ? "↳ " : ""}${name}`)))
-        .child(div().id(`project-${a.address}`).w(width - 12).h(14).line_height(14).flex_none()
+        .child(div().id(`project-${a.address}`).w(width - 12).h(14).flex_none()
           .truncate().text_size(11).text_color(projectInk).child(showProjects && project ? project : ""))
-        .child(div().h(14).line_height(14).flex_none().px(5).text_size(11).text_color(labelInk).child(statusLabel[a.status]));
+        .child(div().h(14).flex_none().px(5).text_size(11).text_color(labelInk).child(statusLabel[a.status]));
     };
 
     const toggle = (id, label, checked, change) => Switch.new(id).checked(checked).on_change(change)
