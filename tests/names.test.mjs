@@ -68,6 +68,19 @@ test('name identity follows machine/space/address, never species, and never leak
   assert.equal(fishName(agent, spaces, k => settings.get(k)).name, defaultName('t1'));
 });
 
+test('terminal-scoped policy: a different agent in the same terminal intentionally keeps the name', () => {
+  const settings = new Map();
+  const read = k => settings.get(k);
+  const terminal = { address: 't1', space: 's1' };
+  settings.set(fishNameKey(terminal, spaces), 'Greg');
+  // The name belongs to the terminal's fish, not the agent session (#17, user-approved).
+  const replacement = { address: 't1', space: 's1', title: 'Other agent', program: { name: 'other' } };
+  assert.equal(fishName(replacement, spaces, read).name, 'Greg');
+  assert.equal(fishName(replacement, spaces, read).key, fishNameKey(terminal, spaces));
+  // A new terminal address gets its own name, never the replacement's inheritance.
+  assert.notEqual(fishNameKey({ address: 't2', space: 's1' }, spaces), fishNameKey(terminal, spaces));
+});
+
 test('duplicate and long names stay single-line, bounded strings', () => {
   const settings = new Map();
   const read = k => settings.get(k);
