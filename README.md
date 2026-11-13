@@ -152,7 +152,7 @@ herdr-app status
 herdr-app shot /tmp/aquarium.png
 ```
 
-120 Node tests cover discovery/families, stable species and placement, project labels and their saved toggle, heading versus displacement, geometry, navigation dispatch, native control descriptions, and scheduler cleanup. 33 Python checks cover assets, animation coverage, wave tiling and reproducible gallery pixels. These are not human input acceptance.
+122 Node tests cover discovery/families, stable species and placement, project labels and their saved toggle, documented native line-height semantics, native-shaped project metadata, heading versus displacement, geometry, navigation dispatch, native control descriptions, and scheduler cleanup. 33 Python checks cover assets, animation coverage, wave tiling and reproducible gallery pixels. These are not human input acceptance. See the [PR #21 native-label regression evidence and remaining acceptance](docs/native-label-regression.md).
 
 A [controlled live pass](docs/native-live-validation.md) displayed three genuine pane-less children and the brighter habitat. Native captures cover a five-fish workspace at Normal/Smooth and two real root species at both speeds/turn modes (136 frames at 1 Hz); no sustained backwards-facing mismatch was found on clear sampled legs. That sampling does not establish fade smoothness, frame pacing, hit comfort, keyboard behavior, every species/status, or complete lifecycle acceptance. Raw child navigation was corrected after `agent.focus` failed live: the native terminal-peek endpoint opened the correct worker, while physical Button activation remains untested.
 

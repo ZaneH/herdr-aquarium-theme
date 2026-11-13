@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { nativeProjects } from './fixtures/native-project-metadata.mjs';
 import { SPECIES, speciesFor, detailsFor, projectName, fishAsset, schoolGeometry, newCompletions, schoolFamilies, floatingGeometry, surfaceGeometry } from '../mods/aquarium/model.js';
 
 test('fish assignment is stable and every selected sprite exists', () => {
@@ -36,6 +37,27 @@ test('project identity prefers native space names, with truthful folder and miss
   assert.equal(projectName({ address: 't1', title: 'Pi', program: { name: 'Pi' } }, null, spaces), null);
   assert.equal(projectName({ address: 't1', space_name: '  Long\n project  ' }, null, []), 'Long project');
   assert.ok(detailsFor(agent, null, 'Named project').includes('Project: Named project'));
+});
+
+test('native project metadata resolves space names, not stale startup folders or colliding bare terminal IDs', () => {
+  const { agents, spaces, terminals } = nativeProjects;
+  for (const agent of agents) {
+    const terminal = terminals.find(t => t.address === agent.address);
+    assert.equal(projectName(agent, terminal, spaces), agent.space_name);
+    assert.equal(projectName(agent, null, []), agent.space_name, 'AgentInfo fallback uses the same native name');
+    assert.equal(projectName({ address: agent.address }, terminal, spaces), agent.space_name,
+      'machine-local terminal labels resolve to machine-qualified SpaceInfo ids');
+  }
+  for (const terminal of terminals.filter(t => t.parent)) {
+    const parent = agents.find(a => a.address === terminal.parent);
+    const child = { address: terminal.address };
+    assert.equal(projectName(child, terminal, spaces, parent.space_name), parent.space_name);
+    assert.equal(projectName(child, { ...terminal, cwd: null }, spaces, parent.space_name), parent.space_name,
+      'pane-less child may inherit only its verified family');
+  }
+  const renamed = spaces.map(space => ({ ...space, name: `${space.name} renamed` }));
+  assert.equal(projectName(agents[0], terminals[0], renamed), 'herdr-aquarium-theme renamed',
+    'current native space name wins over an older AgentInfo snapshot');
 });
 
 test('children use their own project first, inherit only an unscoped verified family fallback', () => {
