@@ -31,9 +31,9 @@ export function floatingGeometry(width, height, address, children) {
   const stacked = width < 260;
   const columns = Math.max(1, Math.min(3, Math.floor((stacked ? width : width - leaderWidth - 8) / 100)));
   const broodWidth = Math.max(0, Math.min(children, columns) * 100 - 4);
-  const broodHeight = Math.ceil(children / columns) * 126;
+  const broodHeight = Math.ceil(children / columns) * 144;
   const w = children ? (stacked ? Math.max(leaderWidth, broodWidth) : leaderWidth + 8 + broodWidth) : leaderWidth;
-  const h = children ? (stacked ? 186 + broodHeight : Math.max(178, broodHeight)) : 178;
+  const h = children ? (stacked ? 204 + broodHeight : Math.max(196, broodHeight)) : 196;
   const dx = Math.max(0, width - w);
   const dy = Math.max(0, height - h);
   return { width: w, height: h, leaderWidth, broodWidth, stacked, seed, maxX: dx, maxY: dy,
@@ -150,6 +150,26 @@ export function fishName(agent, nativeSpaces, sharedGet) {
   return { name: saved || defaultName(agent.address), key, saved };
 }
 
+// Native space names already follow Herdr's named-space/repo/folder convention.
+// Raw terminal labels use machine-local IDs; never resolve a remote label locally.
+export function projectName(agent, terminal, nativeSpaces, familyProject = null) {
+  const machine = agent.address.slice(0, agent.address.lastIndexOf("/") + 1);
+  const label = terminal?.labels?.["herdr.space"];
+  const scope = agent.space || (typeof label === "string" && label ? machine + label : null);
+  const space = nativeSpaces.find(space => space.id === scope);
+  const name = space?.name || agent.space_name;
+  if (typeof name === "string" && name.trim()) return name.trim().replace(/\s+/g, " ");
+  const folder = terminal?.cwd || space?.folder;
+  if (typeof folder === "string" && folder.trim()) {
+    const path = folder.trim().replace(/[\\/]+$/, "");
+    // Keep a reported filesystem root truthful, including Windows drive roots.
+    return (!path || /^[A-Za-z]:$/.test(path) ? folder.trim() : path.split(/[\\/]/).at(-1)).replace(/\s+/g, " ");
+  }
+  // Only callers with a verified family may supply this fallback. An explicit
+  // but unavailable scope must not silently borrow a different project's name.
+  return scope ? null : familyProject;
+}
+
 export function savedSpecies(value) {
   return typeof value === "string" && SPECIES.includes(value) ? value : null;
 }
@@ -200,9 +220,10 @@ export function newCompletions(previous, school) {
   return school.filter(agent => agent.status === "done" && previous.get(agent.address) !== "done");
 }
 
-export function detailsFor(agent, terminal) {
+export function detailsFor(agent, terminal, project = null) {
   // shortcut: this Herdr build does not document telemetry fields; add them when its API does.
   return [agent.address, `Status: ${agent.status}`, "Cache: not reported", "Thinking: not reported",
+    ...(project ? [`Project: ${project}`] : []),
     ...(terminal?.parent ? [`Parent: ${terminal.parent}`] : []),
     ...(terminal?.cwd ? [`Folder: ${terminal.cwd}`] : [])];
 }

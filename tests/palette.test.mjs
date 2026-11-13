@@ -32,6 +32,7 @@ test('unbacked lettering and keyboard focus contrast with habitat paints indepen
     for (const color of colors) {
       assert.ok(contrast(color, ink.background) >= 3, `${file} focus: ${color}`);
       assert.ok(contrast(color, ink.foreground) >= 4.5, `${file} lettering: ${color}`);
+      assert.ok(contrast(color, '#0c242c') >= 4.5, `${file} project lettering: ${color}`);
     }
   }
   assert.deepEqual(paints[0], paints[1]);
@@ -40,6 +41,8 @@ test('unbacked lettering and keyboard focus contrast with habitat paints indepen
   // Night labels use a render-local pale ink, chosen when aquarium.night is on.
   const nightInk = '#d8f0ed';
   assert.match(source, /const labelInk = night \? "#d8f0ed" : tankInk\.foreground/);
+  assert.match(source, /const projectInk = night \? "#bddbd9" : "#0c242c"/);
+  assert.match(source, /text_color\(projectInk\)/);
   const labelRows = [...source.matchAll(/text_color\(labelInk\)/g)];
   assert.ok(labelRows.length >= 2, 'both actual fish label rows must paint with labelInk, not an unused constant');
   // Check each habitat paint after tinting, not just the raw overlay color.
@@ -49,6 +52,7 @@ test('unbacked lettering and keyboard focus contrast with habitat paints indepen
     const composite = '#' + [1, 3, 5].map(i => Math.round(0.72 * parseInt(overlay.slice(i, i + 2), 16)
       + 0.28 * parseInt(daylight.slice(i, i + 2), 16)).toString(16).padStart(2, '0')).join('');
     assert.ok(contrast(nightInk, composite) >= 4.5, `night ink on composite ${composite}`);
+    assert.ok(contrast('#bddbd9', composite) >= 4.5, `night project ink on composite ${composite}`);
     assert.ok(contrast(nightInk, composite) >= 3, `night focus on composite ${composite}`);
   }
   assert.doesNotMatch(source, /bg\(tankInk.background\)/);

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import * as model from '../mods/aquarium/model.js';
 import * as presentation from '../mods/aquarium/presentation.js';
+import * as motion from '../mods/aquarium/motion.js';
 
 // Builder/callback contract check, NOT a native keyboard or layout acceptance test.
 const source = readFileSync(new URL('../mods/aquarium/main.js', import.meta.url), 'utf8')
@@ -28,7 +29,7 @@ function fixture(settings = new Map(), immersive = false, viewport = { width: 22
     return node;
   }
   const env = {
-    ...model, ...presentation, spaces: () => animationCase?.spaces || [],
+    ...model, ...presentation, ...motion, spaces: () => animationCase?.spaces || [],
     View: class {}, agents: () => [], terminals: () => [], theme: () => ({}),
     props: () => ({ immersive, terminal: animationCase?.terminal }), shared: key => settings.get(key),
     run: (name, args) => commands.push([name, args]),
@@ -71,12 +72,14 @@ test('all Options callbacks write controlled shared preferences, read by fresh l
     ['aquarium-motion', false, 'aquarium.paused', true],
     ['aquarium-bubbles', false, 'aquarium.bubbles', false],
     ['aquarium-water', false, 'aquarium.water', false],
+    ['aquarium-projects', false, 'aquarium.projects', false],
     ['aquarium-arrangement-false', true, 'aquarium.free', false],
     ['aquarium-speed-normal', true, 'aquarium.speed', 'normal'],
     ['aquarium-turning-false', true, 'aquarium.turning', false],
     ['aquarium-motion', true, 'aquarium.paused', false],
     ['aquarium-bubbles', true, 'aquarium.bubbles', true],
     ['aquarium-water', true, 'aquarium.water', true],
+    ['aquarium-projects', true, 'aquarium.projects', true],
     ['aquarium-arrangement-true', true, 'aquarium.free', true],
     ['aquarium-speed-slow', true, 'aquarium.speed', 'slow'],
     ['aquarium-turning-true', true, 'aquarium.turning', true],
@@ -517,6 +520,87 @@ test('food feedback paints above the family that reaches the target', () => {
   assert.ok(ids.indexOf("aquarium-food") > family, "pellet is above the family");
 });
 
+test('project labels default on, persist off across fresh layouts, and never reset motion or fish choices', () => {
+  const leader = { address: 't1', space: 's1', status: 'working', title: 'Agent title', program: { name: 'Pi', agent: true } };
+  const project = 'A very long real project '.repeat(20);
+  const data = { agents: [leader], spaces: [{ id: 's1', machine: null, name: project }], terminals: [] };
+  for (const free of [true, false]) for (const immersive of [true, false]) {
+    const nameKey = model.fishNameKey(leader, data.spaces);
+    const speciesKey = model.familyChoiceKey(leader, data.spaces);
+    const settings = new Map([['aquarium.free', free], ['aquarium.paused', false], [nameKey, 'Greg'], [speciesKey, 'clownfish']]);
+    const before = [...settings];
+    const f = fixture(settings, immersive, undefined, data);
+    f.view.size = { width: 900, height: 500 };
+    delete f.view.syncMotion; // Use the production scheduler to detect accidental restarts.
+    f.view.inspected = 't1';
+    let nodes = f.render();
+    const entry = f.view.motion.get('t1');
+    const fish = nodes.get('fish-t1');
+    assert.deepEqual([...settings], before, 'default-on render never writes');
+    assert.equal(nodes.get('aquarium-projects').values.checked, true);
+    assert.equal(nodes.get('aquarium-projects').values.accessibility_label, 'Show project names');
+    assert.equal(nodes.get('project-t1').childNodes[0], project.trim());
+    assert.equal(fish.childNodes[1].childNodes[1].childNodes[0], 'Greg', 'personal name remains primary');
+    assert.equal(fish.childNodes.at(-1).childNodes[0], 'Working', 'status remains visible');
+    assert.ok(fish.values.tooltip.includes(`Project: ${project.trim()}`));
+    assert.ok(fish.values.accessibility_label.includes(`Project: ${project.trim()}`));
+    nodes.get('aquarium-projects').values.on_change(false);
+    nodes = f.render();
+    assert.equal(nodes.get('project-t1').childNodes[0], '');
+    assert.equal(nodes.get('fish-t1').values.h, fish.values.h, 'toggle never changes the target');
+    assert.equal(f.view.motion.get('t1'), entry, 'same scheduler entry/state, no re-prime');
+    assert.equal(f.view.inspected, 't1');
+    assert.equal(nodes.get('fish-t1').values.tooltip, fish.values.tooltip, 'details ignore visibility');
+    assert.equal(nodes.get('fish-t1').values.accessibility_label, fish.values.accessibility_label);
+    assert.ok(f.allNodes().some(n => n.childNodes.some(c => typeof c === 'string' && c.includes(`Project: ${project.trim()}`))), 'details strip retains project');
+    assert.deepEqual([...settings], [...before, ['aquarium.projects', false]], 'only requested preference changes');
+    const copy = fixture(settings, immersive, undefined, data);
+    delete copy.view.syncMotion;
+    const fresh = copy.render();
+    assert.equal(fresh.get('aquarium-projects').values.checked, false, 'explicit off survives fresh view');
+    assert.equal(fresh.get('project-t1').childNodes[0], '');
+    assert.equal(fresh.get('fish-t1').childNodes[1].childNodes[1].childNodes[0], 'Greg');
+    nodes.get('aquarium-projects').values.on_change(true);
+    assert.equal(f.render().get('project-t1').childNodes[0], project.trim());
+    assert.equal(f.view.motion.get('t1'), entry);
+  }
+});
+
+test('actual project rows resolve children truthfully and stay within narrow/organized/free targets', () => {
+  const program = { name: 'Pi', agent: true, shell: false };
+  const leader = { address: 't1', space: 's1', title: 'Agent title is not a project', status: 'blocked', program };
+  const raw = (address, parent, extra = {}) => ({ address, parent, state: 'live', status: 'blocked', program, ...extra });
+  const data = { agents: [leader], spaces: [{ id: 's1', machine: null, name: 'Actual project' },
+    { id: 'remote/s1', machine: 'remote', name: 'Remote project' }], terminals: [
+    raw('child', 't1'), raw('nested', 'child'), raw('elsewhere', 't1', { cwd: '/work/other-project/' }),
+    raw('remote/own', 't1', { labels: { 'herdr.space': 's1' } }), raw('remote/unknown', 't1'),
+    raw('orphan', 'missing'), raw('unavailable', 't1', { labels: { 'herdr.space': 'missing' } }),
+  ] };
+  for (const free of [true, false]) for (const width of [136, 300, 900]) {
+    const f = fixture(new Map([['aquarium.free', free]]), false, undefined, data);
+    f.view.size = { width, height: 500 };
+    delete f.view.syncMotion;
+    const nodes = f.render();
+    for (const [address, expected] of Object.entries({ t1: 'Actual project', child: 'Actual project', nested: 'Actual project',
+      elsewhere: 'other-project', 'remote/own': 'Remote project', 'remote/unknown': '', orphan: '', unavailable: '' })) {
+      const row = nodes.get(`project-${address}`);
+      const fish = nodes.get(`fish-${address}`);
+      assert.equal(row.childNodes[0], expected, address);
+      assert.ok(row.values.w <= fish.values.w - 12, 'bounded within existing hit width');
+      assert.ok('truncate' in row.values && 'flex_none' in row.values);
+      assert.equal(row.values.h, 14);
+      assert.equal(row.values.line_height, 14);
+      assert.equal(row.values.text_size, 11);
+      assert.equal(row.values.font_semibold, undefined, 'project is quieter than personal name');
+      const art = fish.childNodes[0];
+      const artBottom = art.values.top + art.values.h;
+      const labelHeight = fish.childNodes.slice(1).reduce((sum, n) => sum + n.values.h, 0);
+      assert.ok(artBottom + labelHeight + 9 + 2 <= fish.values.h, 'three rows clear even blocked artwork');
+      assert.ok(!fish.values.tooltip.includes('undefined'));
+    }
+  }
+});
+
 test('night lighting defaults off; its Options switch persists only aquarium.night', () => {
   const settings = new Map();
   const fresh = fixture(settings);
@@ -569,7 +653,7 @@ test('night overlay is static, noninteractive, and paints below waves, families 
   assert.ok(nodes.has('aquarium-food-halo'), 'food feedback remains present above the tint');
 });
 
-test('night switches both real label rows to moonlit ink; art, status and controls stay day', () => {
+test('night switches all real label rows to moonlit ink; art, status and controls stay day', () => {
   const fish = { address: 't1', status: 'working', title: 'A',
     program: { name: 'Pi', agent: true }, space: 's1' };
   const terminal = { address: 't1', state: 'live', parent: null, status: 'working',
@@ -582,7 +666,8 @@ test('night switches both real label rows to moonlit ink; art, status and contro
     const nodes = f.render();
     assert.equal(nodes.has('aquarium-night-overlay'), night, `overlay only when night (${night})`);
     const fishButton = nodes.get('fish-t1');
-    const [nameRow, statusRow] = fishButton.childNodes.slice(1);
+    const [nameRow, projectRow, statusRow] = fishButton.childNodes.slice(1);
+    assert.equal(projectRow.values.text_color, night ? '#bddbd9' : '#0c242c', 'subtler project ink');
     assert.equal(nameRow.values.text_color, ink, 'name row ink');
     assert.equal(statusRow.values.text_color, ink, 'status row ink');
     // Keep status semantics, but adapt the fish focus ring to the darker habitat.
