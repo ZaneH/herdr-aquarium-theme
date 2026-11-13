@@ -111,7 +111,7 @@ export function schoolFamilies(school, terminals) {
 }
 
 // shortcut: no reliable project-close event; retain choices until reset rather than prune disconnected projects.
-// shortcut: names identify terminals, not program sessions; #17 needs a host session ID before replacement-safe naming can ship.
+// Names belong to the terminal's fish; a different agent in the same terminal intentionally keeps its name (#17 user-approved policy).
 function identityKey(prefix, agent, nativeSpaces) {
   const space = nativeSpaces.find(space => space.id === agent?.space);
   if (!space || !space.id || !agent?.address ||
