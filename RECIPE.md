@@ -76,7 +76,13 @@ Options. Its popover names the captured family and offers 25 named previews plus
 status semantics are unchanged. Opening holds that family's drift until closed,
 and moving the pointer elsewhere cannot redirect an open picker. Controls wrap
 in narrow panes and reserve their measured height above the school. Roots without
-a verified native space identity have a disabled picker.
+a verified native space identity have a disabled picker. Native scrolling of the
+list never established itself, so the picker pages its rows: Prev/Next plus a page
+count stay inside the popover's height bound with the header, Fish name row and
+preview, so every species stays reachable without scrolling (a minimal page may
+hold one row). The Fish name row offers an explicit **Save** button beside the
+input; Enter and Save share one handler, an empty value restores the default, and
+the row's hint says so.
 Preferences use persisted `shared`/`setShared`, keyed by machine, native space ID
 and leader terminal address (not project title or folder). Automatic keeps the
 existing address-based assignment; unknown saved species fall back to it.
