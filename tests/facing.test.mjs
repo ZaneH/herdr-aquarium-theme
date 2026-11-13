@@ -83,16 +83,17 @@ test('all species: family poses follow sampled travel regardless of child status
         const asset = fishAsset({ address: 'unrelated-child', status }, false, true, address, true, m.face);
         const species = speciesFor(address);
         const eel = species === 'moray_eel';
+        const canonical = eel || species === 'flounder';
         const fin = ['betta', 'fancy_goldfish', 'freshwater_angelfish', 'manta_ray',
           'ocean_sunfish', 'pufferfish_inflated', 'mandarinfish', 'lionfish',
           'silver_arowana', 'seahorse'].includes(species);
-        const caudal = ['great_white_shark', 'hammerhead_shark'].includes(species);
+        const caudal = ['great_white_shark', 'hammerhead_shark', 'flounder'].includes(species);
         const animation = eel ? 'body' : fin ? 'fin' : caudal ? 'caudal' : 'tail';
         const looping = eel || fin || caudal
           || ['clownfish', 'blue_tang', 'koi', 'largemouth_bass', 'rainbow_trout', 'sockeye_salmon', 'piranha', 'swordfish', 'bluefin_tuna', 'channel_catfish', 'anglerfish'].includes(species);
         const expected = looping && ['working', 'idle'].includes(status)
           ? `${species}-${animation}-${m.face}.webp`
-          : eel ? `${species}-inplace-${status === 'done' ? `gold-${m.face}` : m.face}.png`
+          : canonical ? `${species}-inplace-${status === 'done' ? `gold-${m.face}` : m.face}.png`
           : `${species}${m.face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`;
         assert.equal(asset, expected);
         assert.ok(existsSync(new URL(`../mods/aquarium/assets/${expected}`, import.meta.url)));

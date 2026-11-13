@@ -395,6 +395,45 @@ def fin_frames(source, species, facing, count=FRAME_COUNT):
     return frames
 
 
+# The original flounder portraits face front/back; camera 0 in the existing
+# lossy travel clip provides a clear right-facing pose, mirrored for the left.
+# Load each frame before reading its duration; gold retains the source alpha.
+FLOUNDER_CLIP = 'flounder-swim.webp'
+FLOUNDER_TURN_SLOT = 112
+FLOUNDER_PHASE = 143
+FLOUNDER_CROP = (400, 12, 496, 108)
+
+
+def flounder_canonical(output):
+    """Write the 4 canonical flounder stills from the committed source clip
+    and return the fresh normal stills for loop generation."""
+    with Image.open(ASSETS / FLOUNDER_CLIP) as clip:
+        target_ms = ((FLOUNDER_TURN_SLOT - FLOUNDER_PHASE) % 240) * 50
+        start_ms = 0
+        right = None
+        for i in range(clip.n_frames):
+            clip.seek(i)
+            frame = clip.convert('RGBA')  # load before reading the duration
+            duration = clip.info['duration']
+            if start_ms <= target_ms < start_ms + duration:
+                right = frame
+                break
+            start_ms += duration
+        if right is None:
+            raise ValueError(f'No frame covers {target_ms} ms in {FLOUNDER_CLIP}')
+    right = right.crop(FLOUNDER_CROP)
+    left = ImageOps.mirror(right)
+    gold_right = ImageOps.colorize(ImageOps.grayscale(right), '#60401c', '#fff0a5',
+                                   mid='#dba849')
+    gold_right.putalpha(right.getchannel('A'))
+    gold_left = ImageOps.mirror(gold_right)
+    for name, image in (('inplace-right.png', right), ('inplace-left.png', left),
+                        ('inplace-gold-right.png', gold_right),
+                        ('inplace-gold-left.png', gold_left)):
+        image.save(Path(output) / f'flounder-{name}')
+    return {'right': right, 'left': left}
+
+
 # Layered appendage loops (ocean_sunfish, pufferfish_inflated): the actual
 # appendage pixels are split from the source once and ONLY that moving layer
 # is warped; every other occupied source pixel is restored RGBA byte-exact afterwards,
@@ -462,6 +501,17 @@ LAYER_PROFILES = {
     ('seahorse', 'left'): dict(
         file='seahorse-left.png', mode='dorsal', root=(60.0, 47.0), amp=0.07, feather=4.0,
         inbox=lambda x, y: x >= 60 and 36 <= y <= 55, rootdist=lambda x: x - 60.0),
+    # Flounder caudal fan: same 'dorsal' root-flex engine as the seahorse. The
+    # moving mask is the genuine 127-px fan strictly behind the preserve plane
+    # (x<=25 right / x>=70 left); the y<=49 cap keeps the three trailing-body
+    # fringe pixels at y=50..52 static. Loop sources are the canonical stills
+    # freshly generated from the committed source clip in build().
+    ('flounder', 'right'): dict(
+        file='flounder-inplace-right.png', mode='dorsal', root=(26.0, 48.0), amp=0.07, feather=4.0,
+        inbox=lambda x, y: x <= 25 and y <= 49, rootdist=lambda x: 26.0 - x),
+    ('flounder', 'left'): dict(
+        file='flounder-inplace-left.png', mode='dorsal', root=(69.0, 48.0), amp=0.07, feather=4.0,
+        inbox=lambda x, y: x >= 70 and y <= 49, rootdist=lambda x: x - 69.0),
 }
 
 
@@ -653,10 +703,20 @@ def layer_frames(source, species, facing, count=FRAME_COUNT):
 def build(output):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
+    # Flounder stills are regenerated from the committed source clip in every
+    # build, and the fresh canonical images are the loop inputs (never a
+    # possibly stale committed copy). The public stem is -caudal- (the fin
+    # prefix belongs to the IN_PLACE_FIN species).
+    flounder_stills = flounder_canonical(output)
     for (species, facing), prof in LAYER_PROFILES.items():
-        with Image.open(ASSETS / prof['file']) as source:
-            frames = layer_frames(source, species, facing)
-        frames[0].save(output / f'{species}-fin-{facing}.webp',
+        if species == 'flounder':
+            frames = layer_frames(flounder_stills[facing], species, facing)
+            stem = 'caudal'
+        else:
+            with Image.open(ASSETS / prof['file']) as source:
+                frames = layer_frames(source, species, facing)
+            stem = 'fin'
+        frames[0].save(output / f'{species}-{stem}-{facing}.webp',
                        save_all=True, append_images=frames[1:], duration=FRAME_MS,
                        loop=0, lossless=True, exact=True, method=6)
     for (species, facing), prof in FIN_PROFILES.items():

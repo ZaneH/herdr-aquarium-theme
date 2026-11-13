@@ -6,7 +6,7 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('in_place', ROOT / 'tools/prepare-in-place-fish.py')
@@ -705,7 +705,8 @@ class LayeredFinTests(unittest.TestCase):
     def test_invalid_layer_dimensions_species_and_facing_are_rejected(self):
         cases = [(Image.new('RGBA', (10, 10)), 'ocean_sunfish', 'right'),
                  (Image.new('RGBA', (96, 96)), 'ocean_sunfish', 'up'),
-                 (Image.new('RGBA', (96, 96)), 'flounder', 'right'),
+                 # flounder is a valid layer species now; koi is not one.
+                 (Image.new('RGBA', (96, 96)), 'koi', 'right'),
                  (Image.new('RGBA', (96, 96)), 'clownfish', 'left')]
         for image, species, facing in cases:
             with self.assertRaises(ValueError):
@@ -890,3 +891,175 @@ class RecoveredFinTests(unittest.TestCase):
                 (Image.new('RGBA', (96, 96)), 'moray_eel', 'right')]:
             with self.assertRaises(ValueError):
                 prepare.layer_frames(image, species, facing)
+
+
+FLOUNDER_NEW_ASSETS = ('flounder-caudal-right.webp', 'flounder-caudal-left.webp',
+                       'flounder-inplace-right.png', 'flounder-inplace-left.png',
+                       'flounder-inplace-gold-right.png', 'flounder-inplace-gold-left.png')
+FLOUNDER_ORIGINALS = ('flounder.png', 'flounder-left.png', 'flounder-gold.png',
+                      'flounder-left-gold.png', 'flounder-swim.webp', 'flounder-glide.webp')
+# The three trailing-body fringe pixels stay static: x=25 (right) / x=70 (left).
+FLOUNDER_FRINGE_X = {'right': 25, 'left': 70}
+# Outer tail window (x range, y 38..60) where the fan honestly gains/loses.
+FLOUNDER_TIP = {'right': (9, 14), 'left': (82, 87)}
+
+
+class FlounderCaudalTests(unittest.TestCase):
+    """Flounder isolated caudal fan: same root-flex layer renderer as the
+    seahorse dorsal, with the approved 127-pixel column-only mask and its
+    y<=49 cap keeping the three trailing-body fringe pixels static."""
+
+    def _parts(self, facing):
+        prof = prepare.LAYER_PROFILES[('flounder', facing)]
+        with Image.open(ROOT / f'mods/aquarium/assets/{prof["file"]}') as handle:
+            source = handle.convert('RGBA')
+        mask = prepare._layer_mask(source, prof)
+        fields, maxd = prepare._layer_fields(source, mask, prof)
+        moving = Image.new('RGBA', (96, 96), (0, 0, 0, 0))
+        mp, sp = moving.load(), source.load()
+        for y in range(96):
+            for x in range(96):
+                if mask[y][x]:
+                    mp[x, y] = sp[x, y]
+        return prof, source, mask, fields, maxd, moving
+
+    def test_canonical_stills_come_from_the_committed_clip(self):
+        assets = ROOT / 'mods/aquarium/assets'
+        originals = [assets / name for name in FLOUNDER_ORIGINALS]
+        hashes = {p: hashlib.sha256(p.read_bytes()).digest() for p in originals}
+        flip = Image.Transpose.FLIP_LEFT_RIGHT
+        with tempfile.TemporaryDirectory() as temp:
+            fresh = prepare.flounder_canonical(temp)
+            for name in ('flounder-inplace-right.png', 'flounder-inplace-left.png',
+                         'flounder-inplace-gold-right.png', 'flounder-inplace-gold-left.png'):
+                self.assertEqual((Path(temp) / name).read_bytes(),
+                                 (assets / name).read_bytes(), name)
+            # left is the exact mirror of right; gold is the house colorize of
+            # right with the original alpha; gold-left mirrors gold-right.
+            right = Image.open(assets / 'flounder-inplace-right.png').convert('RGBA')
+            left = Image.open(assets / 'flounder-inplace-left.png').convert('RGBA')
+            gold = Image.open(assets / 'flounder-inplace-gold-right.png').convert('RGBA')
+            gold_left = Image.open(assets / 'flounder-inplace-gold-left.png').convert('RGBA')
+            self.assertEqual(left.tobytes(), right.transpose(flip).tobytes())
+            self.assertEqual(gold_left.tobytes(), gold.transpose(flip).tobytes())
+            self.assertEqual(gold.getchannel('A').tobytes(), right.getchannel('A').tobytes())
+            expected = ImageOps.colorize(ImageOps.grayscale(right), '#60401c', '#fff0a5',
+                                         mid='#dba849')
+            expected.putalpha(right.getchannel('A'))
+            self.assertEqual(gold.tobytes(), expected.convert('RGBA').tobytes())
+            # the returned fresh stills are the ones the loops are built from
+            self.assertEqual(fresh['right'].tobytes(), right.tobytes())
+            self.assertEqual(fresh['left'].tobytes(), left.tobytes())
+        self.assertEqual(hashes, {p: hashlib.sha256(p.read_bytes()).digest() for p in originals})
+
+    def test_mask_is_exactly_127_and_body_fringe_stays_static(self):
+        for facing in ('right', 'left'):
+            prof, source, mask, fields, maxd, moving = self._parts(facing)
+            sp, mp = source.load(), moving.load()
+            # the approved column-only mask: exactly 127 genuine fan pixels,
+            # never the three trailing-body fringe pixels behind the plane.
+            self.assertEqual(sum(1 for y in range(96) for x in range(96) if mask[y][x]), 127)
+            fx = FLOUNDER_FRINGE_X[facing]
+            fringe = [(fx, y) for y in (50, 51, 52)]
+            for x, y in fringe:
+                self.assertGreater(sp[x, y][3], 0)
+                self.assertFalse(mask[y][x])
+            static_px = [(x, y) for y in range(96) for x in range(96)
+                         if sp[x, y][3] > 0 and not mask[y][x]]
+            self.assertGreater(len(static_px), 500)
+            for x, y in static_px:
+                self.assertEqual(mp[x, y][3], 0)  # zero body input to the sampler
+            frames = prepare.layer_frames(source, 'flounder', facing)
+            self.assertEqual(len(frames), 12)
+            # protected body, forebody/head and the continuous fin fringe
+            # (including those three pixels) stay RGBA byte-exact everywhere.
+            for frame in frames:
+                fp = frame.load()
+                for x, y in static_px:
+                    self.assertEqual(fp[x, y], sp[x, y])
+                for perimeter in [(0, 0, 96, 1), (0, 95, 96, 96), (0, 0, 1, 96), (95, 0, 96, 96)]:
+                    self.assertIsNone(frame.getchannel('A').crop(perimeter).getbbox())
+
+    def test_fan_provenance_bounds_and_silhouette(self):
+        for facing in ('right', 'left'):
+            prof, source, mask, fields, maxd, moving = self._parts(facing)
+            sp, mp = source.load(), moving.load()
+            frames = prepare.layer_frames(source, 'flounder', facing)
+            self.assertEqual(prepare.layer_frames(source, 'flounder', facing, 13)[12], frames[0])
+            # approved 1.4616 px root-flex bound (never above the 2 px cap)
+            self.assertLessEqual(maxd, 2.0 + 1e-9)
+            # phase-0 sine: frame 0 is the source still, 7 visible states
+            self.assertTrue(composited_equal(frames[0], source))
+            self.assertEqual(_visible_states(frames), 7)
+            # Check actual fin-layer provenance everywhere, including the root
+            # where the rejected sampler copied body pixels into empty space.
+            lo, hi = FLOUNDER_TIP[facing]
+            src_a = source.getchannel('A').point(lambda a: 255 if a >= 16 else 0)
+            for i, frame in enumerate(frames):
+                theta = math.tau * i / 12
+                fp = frame.load()
+                gained = lost = 0
+                for y in range(96):
+                    for x in range(96):
+                        in_src, in_out = src_a.load()[x, y], fp[x, y][3] >= 16
+                        at_tip = lo <= x <= hi and 38 <= y <= 60
+                        if in_out and not in_src:
+                            gained += at_tip
+                            f = fields[y * 96 + x]
+                            self.assertIsNotNone(f)
+                            self.assertGreater(f[3], 0)
+                            taps = _layer_taps(x, y, f, theta)
+                            self.assertEqual(fp[x, y], _sample_layer_taps(moving, taps))
+                            for tx, ty, _wt in taps:
+                                if not mask[ty][tx]:
+                                    self.assertEqual(mp[tx, ty][3], 0)
+                        elif in_src and not in_out:
+                            lost += at_tip
+                if i in (3, 9):
+                    self.assertGreater(gained, 0)
+                    self.assertGreater(lost, 0)
+            # one connected silhouette (fan stays attached to the body) and
+            # opaque-source MaxFilter-7 coverage at both thresholds.
+            src_opaque = source.getchannel('A').point(lambda a: 255 if a >= 128 else 0)
+            for thresh in (16, 128):
+                for frame in frames:
+                    self.assertEqual(alpha_components(frame, thresh), 1)
+                    dilated = frame.getchannel('A').point(lambda a: 255 if a >= 16 else 0) \
+                        .filter(ImageFilter.MaxFilter(7))
+                    for y in range(96):
+                        for x in range(96):
+                            if src_opaque.load()[x, y]:
+                                self.assertGreaterEqual(dilated.load()[x, y], 16)
+
+    def test_committed_flounder_assets_are_reproducible_and_timelines_match(self):
+        assets = ROOT / 'mods/aquarium/assets'
+        originals = [assets / name for name in FLOUNDER_ORIGINALS]
+        hashes = {p: hashlib.sha256(p.read_bytes()).digest() for p in originals}
+        with tempfile.TemporaryDirectory() as temp:
+            prepare.build(temp)
+            for name in FLOUNDER_NEW_ASSETS:
+                generated = Path(temp) / name
+                committed = assets / name
+                self.assertEqual(generated.read_bytes(), committed.read_bytes(), name)
+            for facing in ('right', 'left'):
+                generated = Path(temp) / f'flounder-caudal-{facing}.webp'
+                with Image.open(assets / f'flounder-inplace-{facing}.png') as handle:
+                    source = handle.convert('RGBA')
+                    intended = prepare.layer_frames(source, 'flounder', facing)
+                durations = frame_durations(generated)
+                with Image.open(generated) as clip:
+                    self.assertTrue(clip.is_animated)
+                    self.assertEqual(clip.size, (96, 96))
+                    self.assertEqual(clip.info['loop'], 0)
+                    self.assertEqual(sum(durations), 1200)
+                    self.assertTrue(all(d > 0 and d % 100 == 0 for d in durations))
+                    slot = 0
+                    for i, duration in enumerate(durations):
+                        clip.seek(i)
+                        frame = clip.convert('RGBA')
+                        for _ in range(duration // 100):
+                            self.assertTrue(composited_equal(frame, intended[slot]),
+                                            f'flounder {facing} slot {slot}')
+                            slot += 1
+                    self.assertEqual(slot, 12)
+        self.assertEqual(hashes, {p: hashlib.sha256(p.read_bytes()).digest() for p in originals})

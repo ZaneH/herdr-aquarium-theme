@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { speciesFor, detailsFor, fishAsset, schoolGeometry, newCompletions, schoolFamilies, floatingGeometry, surfaceGeometry } from '../mods/aquarium/model.js';
+import { SPECIES, speciesFor, detailsFor, fishAsset, schoolGeometry, newCompletions, schoolFamilies, floatingGeometry, surfaceGeometry } from '../mods/aquarium/model.js';
 
 test('fish assignment is stable and every selected sprite exists', () => {
   for (let i = 0; i < 100; i++) {
@@ -147,6 +147,53 @@ test('moray eel: floating body wave from mirrored canonical side art, stills mat
     assert.equal(fishAsset({ address: 'child', status: 'working' }, paused, turning, 'leader', false, 'left', 'moray_eel'),
       paused ? 'moray_eel.png' : `moray_eel-${turning ? 'swim' : 'glide'}.webp`);
   }
+});
+
+test('flounder: isolated caudal fan loops only when active, canonical stills otherwise', () => {
+  for (const face of ['left', 'right']) for (const turning of [true, false]) {
+    for (const status of ['working', 'idle', 'blocked', 'done', 'unknown']) for (const paused of [true, false]) {
+      const asset = fishAsset({ address: 'child', status }, paused, turning, 'leader', true, face, 'flounder');
+      const active = !paused && ['working', 'idle'].includes(status);
+      assert.equal(asset, active ? `flounder-caudal-${face}.webp`
+        : `flounder-inplace-${status === 'done' ? `gold-${face}` : face}.png`);
+      assert.ok(existsSync(new URL(`../mods/aquarium/assets/${asset}`, import.meta.url)));
+    }
+  }
+  // Organized travelling clips are untouched for the flounder too.
+  for (const turning of [true, false]) for (const paused of [true, false]) {
+    assert.equal(fishAsset({ address: 'child', status: 'working' }, paused, turning, 'leader', false, 'left', 'flounder'),
+      paused ? 'flounder.png' : `flounder-${turning ? 'swim' : 'glide'}.webp`);
+    assert.equal(fishAsset({ address: 'child', status: 'blocked' }, paused, turning, 'leader', false, 'left', 'flounder'), 'flounder.png');
+    assert.equal(fishAsset({ address: 'child', status: 'done' }, paused, turning, 'leader', false, 'left', 'flounder'), 'flounder-gold.png');
+  }
+});
+
+test('all 25 species loop in place on both facings while active, matched stills otherwise', () => {
+  assert.equal(SPECIES.length, 25);
+  const canonicalStill = new Set(['moray_eel', 'flounder']);
+  const covered = new Set();
+  for (const species of SPECIES) for (const face of ['left', 'right']) {
+    const active = fishAsset({ address: 'child', status: 'working' }, false, true, 'leader', true, face, species);
+    assert.match(active, new RegExp(`^${species}-(body|tail|fin|caudal)-${face}\\.webp$`), species);
+    assert.ok(existsSync(new URL(`../mods/aquarium/assets/${active}`, import.meta.url)));
+    covered.add(species);
+    // same inactive semantics as every other species
+    for (const status of ['blocked', 'done', 'unknown']) {
+      const asset = fishAsset({ address: 'child', status }, false, true, 'leader', true, face, species);
+      const expected = canonicalStill.has(species)
+        ? `${species}-inplace-${status === 'done' ? `gold-${face}` : face}.png`
+        : `${species}${face === 'left' ? '-left' : ''}${status === 'done' ? '-gold' : ''}.png`;
+      assert.equal(asset, expected, species);
+      assert.ok(existsSync(new URL(`../mods/aquarium/assets/${expected}`, import.meta.url)));
+    }
+    const paused = fishAsset({ address: 'child', status: 'working' }, true, true, 'leader', true, face, species);
+    const expected = canonicalStill.has(species)
+      ? `${species}-inplace-${face}.png`
+      : `${species}${face === 'left' ? '-left' : ''}.png`;
+    assert.equal(paused, expected, species);
+    assert.ok(existsSync(new URL(`../mods/aquarium/assets/${expected}`, import.meta.url)));
+  }
+  assert.equal(covered.size, 25);
 });
 
 test('flowing-fin species loop from their own stills, fallbacks reuse norm/gold poses', () => {

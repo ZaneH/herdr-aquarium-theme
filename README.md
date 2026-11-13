@@ -93,13 +93,15 @@ Eel left/right loops and still/gold fallbacks use matched, mirrored side artwork
 it faces its route correctly. The tail-loop species retain their fixed bodies and
 bounded caudal motion; the eel deliberately allows body deformation; the fin
 species keep body and face frozen and move only the fins; the manta moves only
-its wings and keeps the tail fixed.
+its wings and keeps the tail fixed; the flounder moves only its 127-pixel
+caudal fan out of matched canonical stills (its top-down oval has no
+camera-0 pose portrait).
 
 All loops use twelve intended 100 ms slots. The WebP encoder may coalesce identical
 frames, but the decoded 1200 ms timeline is tested slot by slot. Enable Animate
 aquarium to use supported working/idle loops; hovering holds travel while the
 in-place animation can continue. Paused/inactive/blocked/done fish use still/gold
-art. **1 species (flounder) remains still** while work continues toward all 25; see
+art. **All 25 species are animated**; see
 [animation coverage](docs/animation-coverage.md). Organized keeps the original
 travelling/turning clips. These are procedural 2D loops, not restored authored
 swimming or 3D rotations. Shipped in-place artwork is reviewed offline; native
@@ -145,7 +147,7 @@ herdr-app status
 herdr-app shot /tmp/aquarium.png
 ```
 
-103 Node tests cover discovery/families, stable species and placement, heading versus displacement, geometry, navigation dispatch, native control descriptions, and scheduler cleanup. 29 Python checks cover assets, animation coverage, wave tiling and reproducible gallery pixels. These are not human input acceptance.
+105 Node tests cover discovery/families, stable species and placement, heading versus displacement, geometry, navigation dispatch, native control descriptions, and scheduler cleanup. 33 Python checks cover assets, animation coverage, wave tiling and reproducible gallery pixels. These are not human input acceptance.
 
 A [controlled live pass](docs/native-live-validation.md) displayed three genuine pane-less children and the brighter habitat. Native captures cover a five-fish workspace at Normal/Smooth and two real root species at both speeds/turn modes (136 frames at 1 Hz); no sustained backwards-facing mismatch was found on clear sampled legs. That sampling does not establish fade smoothness, frame pacing, hit comfort, keyboard behavior, every species/status, or complete lifecycle acceptance. Raw child navigation was corrected after `agent.focus` failed live: the native terminal-peek endpoint opened the correct worker, while physical Button activation remains untested.
 

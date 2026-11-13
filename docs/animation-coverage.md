@@ -9,13 +9,16 @@ bounded 2D fin warp (its own profile, below); for the two sharks a caudal-joint
 rotation about the measured peduncle root (its own profile, below); for the six
 layered species — ocean sunfish, inflated puffer, mandarinfish, lionfish, silver
 arowana and seahorse — a layered appendage split that warps only the actual fin
-layer (its own profile, below). Twelve source frames at 100 ms, no new
+layer (its own profile, below); for the flounder an isolated caudal-fan layer split
+out of matched canonical stills (its own profile, below). Twelve source frames at 100 ms, no new
 runtime clock or masking view. The WebP encoder may coalesce identical consecutive source frames
 into longer encoded frames; the decoded 1200 ms timeline must still match the intended
 frame at every 100 ms slot. The tail species' still/gold PNG fallbacks and all Organized
-travelling clips are unchanged; the eel gets matched canonical side fallbacks; the fin
-species reuse their existing norm/gold stills as-is; the sharks reuse theirs too.
-24 species are now animated; 1 (flounder) remains still.
+travelling clips are unchanged; the eel gets matched canonical side fallbacks;
+the fin species reuse their existing norm/gold stills as-is; the sharks reuse theirs
+too; the flounder gets matched canonical normal/gold fallbacks.
+All 25 species are now animated; 0 remain still-only, but the deliberate
+paused/blocked/done/unknown still fallbacks are retained for every species.
 
 "Not shipped" means not added in this batch. It does not mean a species cannot be animated.
 The tail-only algorithm cannot separate fins that share the same image columns; future
@@ -209,6 +212,33 @@ offline clips. Still/gold PNG fallbacks and Organized travelling clips are
 unchanged. Native in-app appearance, input and performance acceptance remains
 unverified, including reduced-motion behavior.
 
+## Shipped flounder: isolated caudal fan (1)
+
+**Flounder** loops only its genuine caudal fan through the same moving-layer
+root-flex engine as the seahorse dorsal (tangential flex about the fan root
+(26,48) right / (69,48) left, `d = 0.07·r·smoothstep(rootdist/4)`, measured
+1.46 px bound), on a MaxFilter-7 support that skips every protected occupied
+source coordinate. The moving mask is the exact 127-px fan strictly behind the
+preserve plane (`x<=25` right / `x>=70` left), with a `y<=49` cap that keeps the
+three trailing-body fringe pixels at `x=25/70, y=50..52` static — an earlier
+130-px mask included them and was rejected. It has 7 visible states over the
+1200 ms loop, gains and loses genuine outer-tail contour at both extremes, and
+keeps one connected silhouette throughout.
+
+Because the flounder art is a top-down oval with no camera-0 pose portrait,
+its canonical stills (and the loop sources) are a deliberate lossy-source
+fallback: frame 10450 ms of the committed Organized swim clip (loaded before
+its container duration is read), cropped to (400,12,496,108), mirrored for the
+left side, with gold as the house colorize of the right frame keeping its
+alpha. Paused/blocked/done/unknown fish use those matched canonical
+`flounder-inplace[-gold]-{right,left}.png` stills, never the old plain poses.
+The earlier whole-source sampler and pinned/shear variants were rejected by the
+coordinator review (protected forebody ghosting into empty tail columns); that
+is truthful history, not a current blocker.
+
+Loops: `flounder-caudal-{right,left}.webp`. Native in-app appearance, input and
+performance acceptance remains unverified, including reduced-motion behavior.
+
 ## Rejected column-shear trials (1, historical)
 
 History: the sharks were first tried as column-shear tail loops and rejected
@@ -224,21 +254,19 @@ assets are not the blocker.
 |---|---|---|---|
 | silver_arowana | 21/78 | the band boundary crosses the trailing tips of the long dorsal and anal fins. Shear moves those fin tips with the caudal fan, leaving a visible one-to-two-pixel step at the boundary in both facings. | A tail-only mask that excludes the dorsal/anal tips, or art with a clear peduncle. Moving the edge inward would shear more body. |
 
-## Not shipped: distinct anatomy, no separable caudal fin (1)
+## Formerly not shipped: distinct anatomy, no separable caudal fin (0 remaining)
 
-These fail the tail algorithm's first assumption: there is no discrete caudal fin, or a different
+These failed the tail algorithm's first assumption: there is no discrete caudal fin, or a different
 fin (pectoral, dorsal, anal, fringe) occupies the same columns. Shearing the band would
-deform that fin or the body silhouette rather than beat a tail. They need species-specific
-fin motion artwork or a fin mask/rig, not a different edge number. The moray eel
-moved to the shipped body wave above; betta, fancy_goldfish and freshwater_angelfish
+deform that fin or the body silhouette rather than beat a tail. They needed species-specific
+fin motion artwork or a fin mask/rig, not a different edge number — which is what shipped.
+The moray eel moved to the shipped body wave above; betta, fancy_goldfish and freshwater_angelfish
 moved to the shipped flowing fins above; manta_ray moved to the shipped wing-flap
 profile above; the sharks moved to the shipped caudal-joint profile above; the
 sunfish and puffer moved to the shipped layered profile above; mandarinfish, lionfish,
-silver_arowana and seahorse moved to the shipped recovered layered profile above.
-
-| species | concrete reason |
-|---|---|
-| flounder | top-down oval with a continuous fin fringe; no discrete caudal fin |
+silver_arowana and seahorse moved to the shipped recovered layered profile above; and
+the flounder's old portraits obscured its small caudal fan; a clear side pose and
+isolated mask now support its shipped caudal-fan profile above.
 
 ## What a future batch would need
 
@@ -256,4 +284,4 @@ silver_arowana and seahorse moved to the shipped recovered layered profile above
 
 Generation and tests: `tools/prepare-in-place-fish.py`; `tests/test_in_place_fish.py`,
 `tests/model.test.mjs`, `tests/facing.test.mjs`. Trials and contact sheets are build-time
-artifacts outside the checkout.
+private build artifacts, not distributed with the mod.

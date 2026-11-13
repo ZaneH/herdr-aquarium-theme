@@ -136,24 +136,25 @@ const IN_PLACE_TAIL = new Set(["clownfish", "blue_tang", "koi", "largemouth_bass
 // only the actual appendage layer is warped; the protected body is restored.
 const IN_PLACE_FIN = new Set(["betta", "fancy_goldfish", "freshwater_angelfish", "manta_ray",
   "ocean_sunfish", "pufferfish_inflated", "mandarinfish", "lionfish", "silver_arowana", "seahorse"]);
-// Caudal-joint loops: sharks rotate their whole caudal silhouette about the
-// measured peduncle root. The still and gold PNG poses already face correctly
-// on both sides, so they are reused as-is for paused/blocked/done fallbacks.
-const IN_PLACE_CAUDAL = new Set(["great_white_shark", "hammerhead_shark"]);
+// Sharks rotate their caudal joints; flounder flexes an isolated caudal fan.
+const IN_PLACE_CAUDAL = new Set(["great_white_shark", "hammerhead_shark", "flounder"]);
+// Species whose floating still/gold fallbacks are the matched canonical
+// -inplace art (eel body wave, flounder caudal fan), never the old poses.
+const CANONICAL_STILL = new Set(["moray_eel", "flounder"]);
 
 export function fishAsset(agent, paused, turning, speciesAddress = agent.address, floating = false, facing = "right", choice = null) {
   const species = savedSpecies(choice) || speciesFor(speciesAddress);
   if (floating) {
     // Fixed-facing frames can loop at any phase without competing with waypoint direction.
-    // The eel deforms its whole body (no caudal fin) and comes from mirrored
-    // canonical side art, so its stills use the -inplace stem, never the old
-    // plain (left-facing) pose.
+    // The eel deforms its whole body (no caudal fin) and the flounder is a
+    // top-down oval; both come from mirrored canonical art, so their stills
+    // use the -inplace stem, never the old plain poses.
     const animation = species === "moray_eel" ? "body" : IN_PLACE_TAIL.has(species) ? "tail"
       : IN_PLACE_FIN.has(species) ? "fin" : IN_PLACE_CAUDAL.has(species) ? "caudal" : null;
     if (animation && !paused && (agent.status === "working" || agent.status === "idle")) {
       return `${species}-${animation}-${facing === "left" ? "left" : "right"}.webp`;
     }
-    if (species === "moray_eel") {
+    if (CANONICAL_STILL.has(species)) {
       return `${species}-inplace-${agent.status === "done" ? "gold-" : ""}${facing === "left" ? "left" : "right"}.png`;
     }
     return `${species}${facing === "left" ? "-left" : ""}${agent.status === "done" ? "-gold" : ""}.png`;
