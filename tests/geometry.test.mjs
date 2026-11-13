@@ -157,6 +157,8 @@ test('actual render preserves all child hit targets, paused offsets and resize i
     appWindow: () => ({ active: true }), window: { viewport_size: () => ({ width: 220, height: 240 }) } };
   for (const name of ['div', 'image', 'h_flex', 'v_flex']) env[name] = () => element();
   for (const name of ['Button', 'Switch', 'Radio', 'RadioGroup', 'Popover']) env[name] = { new: element };
+  env.InputState = { new: () => ({ set_value() {}, on() {}, value: () => '' }) };
+  env.Input = { new: () => element() };
   const Aquarium = runInNewContext(`${source}\nAquarium;`, env);
   const view = new Aquarium();
   Object.assign(view, { size: { width: 100, height: 296 }, previous: new Map(), shimmers: new Map(), motion: new Map() });

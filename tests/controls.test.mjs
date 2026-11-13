@@ -48,13 +48,17 @@ function fixture(settings = new Map(), immersive = false, viewport = { width: 22
     return node;
   };
   for (const name of ['Button', 'Switch', 'Radio', 'RadioGroup', 'Popover']) env[name] = { new: id => element(name, id) };
+  const nameState = { text: '', set_value(next) { this.text = String(next); }, value() { return this.text; },
+    submitHandlers: [], on(event, handler) { if (event === 'submit') this.submitHandlers.push(handler); return true; } };
+  env.InputState = { new: () => nameState };
+  env.Input = { new: () => element('Input') };
   const Aquarium = runInNewContext(`${source}\nAquarium;`, env);
   const view = new Aquarium();
   Object.assign(view, { size: { width: 220, height: 240 }, previous: new Map(), shimmers: new Map(), motion: new Map(), food: null, optionsOpen: false });
   view.syncMotion = () => {}; // Scheduler is outside this suite's scope.
   view.stopMotion = () => { view.clearFood(); }; // Feed state only; motion work belongs to the scheduler suite.
   const cx = { notify() {}, bind_keys: () => 1, timer: { after() { return { cancel() {} }; } } };
-  return { view, cx, commands,
+  return { view, cx, commands, nameState,
     listen() { view.init({}, { spawn(callback) { callback(cx); } }); },
     async deliver(command) { receive(command); await new Promise(resolve => setImmediate(resolve)); },
     allNodes: () => nodes, render() { nodes = []; view.render(cx); return new Map(nodes.filter(n => n.values.id).map(n => [n.values.id, n])); } };
@@ -321,6 +325,110 @@ test('fish picker persists validated family choices and captures intended target
   assert.equal(model.familyChoiceKey({ ...a, space: 'missing' }, data.spaces), null);
   assert.notEqual(key, model.familyChoiceKey({ ...a, space: b.space }, data.spaces));
   assert.notEqual(key, model.familyChoiceKey({ ...a, address: 'another' }, data.spaces));
+});
+
+test('fish names: deterministic defaults, rename persists, empty restores the default', () => {
+  const program = { name: 'Pi' };
+  const a = { address: 't1', space: 's1', title: 'A', status: 'idle', program };
+  const child = { ...a, address: 'child' };
+  const data = { agents: [a, child], terminals: [{ address: 'child', parent: 't1' }],
+    spaces: [{ id: 's1', machine: null }] };
+  const settings = new Map([['aquarium.free', false]]);
+  const f = fixture(settings, false, undefined, data);
+  f.listen();
+  const label = nodes => {
+    const fish = nodes.get('fish-t1');
+    const walk = n => { for (const c of n?.childNodes || []) { if (typeof c === 'string') return c; const found = walk(c); if (found !== undefined) return found; } };
+    return walk(fish);
+  };
+  // Default name is deterministic and stable across renders, never the agent title.
+  const first = label(f.render());
+  assert.equal(first, model.defaultName('t1'));
+  assert.equal(label(f.render()), first);
+  assert.notEqual(first, 'A');
+  // Agent identity stays in details behind the personal name.
+  const fish = f.render().get('fish-t1');
+  assert.ok(fish.values.accessibility_label.startsWith(`${first}, Resting.`));
+  assert.ok(fish.values.accessibility_label.includes('Agent: A'));
+  assert.ok(fish.values.tooltip.includes('Agent: A'));
+  // Rename through the picker: opening seeds the input, Enter persists, label updates.
+  f.render().get('aquarium-fish-picker').values.on_open_change(true, f.cx);
+  assert.equal(f.nameState.text, first);
+  assert.ok(f.render().get('aquarium-fish-name'));
+  f.nameState.text = '  Greg   Jr  ';
+  for (const handler of f.nameState.submitHandlers) handler();
+  const key = model.fishNameKey(a, data.spaces);
+  assert.equal(settings.get(key), 'Greg Jr');
+  assert.equal(label(f.render()), 'Greg Jr');
+  // Survives a fresh view copy (reload/restart), and does not touch the child or species keys.
+  const copy = fixture(settings, false, undefined, data);
+  assert.equal(label(copy.render()), 'Greg Jr');
+  assert.equal(settings.has(model.fishNameKey(child, data.spaces)), false);
+  assert.equal(settings.has(model.familyChoiceKey(a, data.spaces)), false);
+  // Species change does not disturb the name; long input is truncated at the boundary.
+  settings.set(model.familyChoiceKey(a, data.spaces), 'clownfish');
+  assert.equal(label(f.render()), 'Greg Jr');
+  f.nameState.text = 'x'.repeat(80);
+  for (const handler of f.nameState.submitHandlers) handler();
+  assert.equal(settings.get(key), 'x'.repeat(24));
+  // Empty submit clears the custom name and restores the deterministic default.
+  f.nameState.text = '   ';
+  for (const handler of f.nameState.submitHandlers) handler();
+  assert.equal(settings.get(key), '');
+  assert.equal(label(f.render()), first);
+  // A closed picker keeps its scroll children plain and nonshrinking, name row included.
+  const nodes = f.render();
+  nodes.get('aquarium-fish-picker').values.on_open_change(true, f.cx);
+  const scroll = f.render().get('aquarium-fish-picker-scroll');
+  for (const row of scroll.childNodes) {
+    assert.ok(['div', 'v_flex', 'h_flex'].includes(row.type), row.type);
+    assert.ok('flex_none' in row.values);
+  }
+  assert.ok(f.render().get('aquarium-fish-name'));
+});
+
+test('picker renames the inspected child: only the child, species stays leader, reopen retargets', () => {
+  const program = { name: 'Pi' };
+  const a = { address: 't1', space: 's1', title: 'A', status: 'idle', program };
+  const child = { ...a, address: 'child' };
+  const data = { agents: [a, child], terminals: [{ address: 't1' }, { address: 'child', parent: 't1' }],
+    spaces: [{ id: 's1', machine: null }] };
+  const settings = new Map([['aquarium.free', false]]);
+  const f = fixture(settings, false, undefined, data);
+  f.listen();
+  const label = address => {
+    const fish = f.render().get(`fish-${address}`);
+    const walk = n => { for (const c of n?.childNodes || []) { if (typeof c === 'string') return c; const found = walk(c); if (found !== undefined) return found; } };
+    return walk(fish);
+  };
+  // Inspect the child (as hover does), then open: the rename targets the child.
+  f.view.inspected = 'child';
+  f.render().get('aquarium-fish-picker').values.on_open_change(true, f.cx);
+  assert.equal(f.nameState.text, model.defaultName('child'));
+  // Hover/render changes after opening do not retarget the capture.
+  f.view.inspected = 't1';
+  f.render();
+  f.nameState.text = 'Nemo Jr';
+  for (const handler of f.nameState.submitHandlers) handler();
+  assert.equal(settings.get(model.fishNameKey(child, data.spaces)), 'Nemo Jr');
+  assert.equal(settings.has(model.fishNameKey(a, data.spaces)), false, 'leader name untouched');
+  assert.equal(label('child'), '↳ Nemo Jr');
+  assert.equal(label('t1'), model.defaultName('t1'), 'leader keeps its default');
+  // Species stays family-leader scoped while a child is inspected.
+  f.view.inspected = 'child';
+  f.render().get('aquarium-fish-picker').values.on_open_change(true, f.cx);
+  f.render().get('aquarium-fish-choice-clownfish').values.on_change();
+  assert.equal(settings.get(model.familyChoiceKey(a, data.spaces)), 'clownfish');
+  assert.equal(settings.has(model.familyChoiceKey(child, data.spaces)), false, 'no child species key');
+  // Closing and reopening after inspecting the leader targets the leader.
+  f.render().get('aquarium-fish-picker').values.on_open_change(false, f.cx);
+  f.view.inspected = 't1';
+  f.render().get('aquarium-fish-picker').values.on_open_change(true, f.cx);
+  assert.equal(f.nameState.text, model.defaultName('t1'));
+  f.nameState.text = 'Greg';
+  for (const handler of f.nameState.submitHandlers) handler();
+  assert.equal(settings.get(model.fishNameKey(a, data.spaces)), 'Greg');
+  assert.equal(settings.get(model.fishNameKey(child, data.spaces)), 'Nemo Jr', 'child name survives');
 });
 
 test('Feed is a bounded cosmetic control: disabled when not swimming, one pellet, keyboard action', async () => {

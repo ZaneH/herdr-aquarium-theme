@@ -111,11 +111,43 @@ export function schoolFamilies(school, terminals) {
 }
 
 // shortcut: no reliable project-close event; retain choices until reset rather than prune disconnected projects.
-export function familyChoiceKey(leader, nativeSpaces) {
-  const space = nativeSpaces.find(space => space.id === leader?.space);
-  if (!space || !space.id || !leader?.address ||
+// shortcut: names identify terminals, not program sessions; #17 needs a host session ID before replacement-safe naming can ship.
+function identityKey(prefix, agent, nativeSpaces) {
+  const space = nativeSpaces.find(space => space.id === agent?.space);
+  if (!space || !space.id || !agent?.address ||
       !(space.machine === null || (typeof space.machine === "string" && space.machine))) return null;
-  return `aquarium.fish.v1:${JSON.stringify([space.machine, space.id, leader.address])}`;
+  return `${prefix}:${JSON.stringify([space.machine, space.id, agent.address])}`;
+}
+
+export function familyChoiceKey(leader, nativeSpaces) {
+  return identityKey("aquarium.fish.v1", leader, nativeSpaces);
+}
+
+export function fishNameKey(agent, nativeSpaces) {
+  return identityKey("aquarium.name.v1", agent, nativeSpaces);
+}
+
+// Personal default names, deterministic by address so a fish keeps one without a write.
+const DEFAULT_NAMES = ["Greg", "Bob", "Nemo", "Dory", "Marlin", "Bubbles", "Coral", "Pearl",
+  "Finn", "Sunny", "Gil", "Peach", "Gurgle", "Deb", "Jacques", "Bloat", "Anchor", "Chum", "Wanda", "Squirt"];
+
+export function defaultName(address) {
+  return DEFAULT_NAMES[hashFor(address) % DEFAULT_NAMES.length];
+}
+
+// Boundary validation: trim, collapse whitespace, cap at 24 codepoints so long or
+// duplicate names cannot widen labels or collide with click targets. A UTF16 slice
+// would cut a surrogate pair in half; split by codepoint instead.
+export function savedName(value) {
+  if (typeof value !== "string") return null;
+  const name = [...value.trim().replace(/\s+/g, " ")].slice(0, 24).join("");
+  return name || null;
+}
+
+export function fishName(agent, nativeSpaces, sharedGet) {
+  const key = fishNameKey(agent, nativeSpaces);
+  const saved = key ? savedName(sharedGet(key)) : null;
+  return { name: saved || defaultName(agent.address), key, saved };
 }
 
 export function savedSpecies(value) {
