@@ -165,7 +165,7 @@ Regenerate the assets from the source pack ZIP:
 ```sh
 uv run --with pillow python tools/prepare-fish.py /path/to/pack.zip
 # Original bubble artwork needs no source pack:
-uv run --with pillow python tools/prepare-bubbles.py
+uv run --with pillow==11.3.0 python tools/prepare-bubbles.py
 ```
 
 Pillow is build-time only. No further artwork is required. Optional next contributions: transparent plants/rocks/wood foreground art, or a reference image for a brighter tropical or more naturalistic treatment.

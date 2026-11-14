@@ -1,5 +1,6 @@
 """Run: uv run --with pillow python -m unittest discover -s tests"""
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 from PIL import Image
@@ -8,6 +9,9 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('prepare', ROOT / 'tools/prepare-fish.py')
 prepare = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(prepare)
+bubble_spec = importlib.util.spec_from_file_location('bubbles', ROOT / 'tools/prepare-bubbles.py')
+bubbles = importlib.util.module_from_spec(bubble_spec)
+bubble_spec.loader.exec_module(bubbles)
 
 
 class AnimationTests(unittest.TestCase):
@@ -35,7 +39,31 @@ class AnimationTests(unittest.TestCase):
                 self.assertNotEqual(first.tobytes(), clip.convert('RGBA').tobytes())
                 self.assertEqual(first.getpixel((0, 0))[3], 0)
             with Image.open(path.with_suffix('.png')) as poster:
-                self.assertEqual(poster.tobytes(), first.tobytes())
+                background = Image.new('RGBA', poster.size, (13, 41, 53, 255))
+                self.assertEqual(Image.alpha_composite(background, poster.convert('RGBA')).tobytes(),
+                                 Image.alpha_composite(background, first).tobytes())
+
+    def test_bubble_perimeters_and_pinned_reproducibility(self):
+        with tempfile.TemporaryDirectory() as directory:
+            original = bubbles.OUT
+            try:
+                bubbles.OUT = Path(directory)
+                bubbles.prepare()
+                for side in ('left', 'right'):
+                    for extension in ('png', 'webp'):
+                        name = f'bubbles-{side}.{extension}'
+                        self.assertEqual((bubbles.OUT / name).read_bytes(),
+                                         (ROOT / 'mods/aquarium/assets' / name).read_bytes())
+                    with Image.open(bubbles.OUT / f'bubbles-{side}.webp') as clip:
+                        for frame in range(clip.n_frames):
+                            clip.seek(frame)
+                            alpha = clip.convert('RGBA').getchannel('A')
+                            w, h = alpha.size
+                            for box in ((0, 0, w, 1), (0, h - 1, w, h),
+                                        (0, 0, 1, h), (w - 1, 0, w, h)):
+                                self.assertIsNone(alpha.crop(box).getbbox(), (side, frame, box))
+            finally:
+                bubbles.OUT = original
 
     def test_floating_species_have_static_directional_poses_and_matching_gold_alpha(self):
         assets = ROOT / 'mods/aquarium/assets'
