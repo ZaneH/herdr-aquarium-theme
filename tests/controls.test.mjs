@@ -571,6 +571,15 @@ test('project labels default on, persist off across fresh layouts, and never res
 // only a length string is absolute. This models that contract, NOT native paint.
 function assertLabelLinesFit(fish) {
   const rows = fish.childNodes.slice(1);
+  assert.equal(fish.values.p, 0, 'button has no implicit horizontal or top padding');
+  assert.equal(rows[0].values.max_w, fish.values.w - 2, 'name group fits inside both borders');
+  assert.ok(rows[0].childNodes[1].values.max_w + 6 + 5 + 10 <= fish.values.w - 2,
+    'truncated name, dot, gap and padding fit inside the button');
+  for (const row of rows.slice(1)) {
+    assert.equal(row.values.w, fish.values.w - 12);
+    assert.ok('text_center' in row.values && 'truncate' in row.values,
+      'fixed-width text is centered and truncated rather than left-aligned or overflowing');
+  }
   assert.deepEqual(rows.map(row => row.values.h), [16, 14, 14]);
   for (const row of rows) {
     const text = row.childNodes.find(child => child?.values?.text_size) ?? row;
@@ -609,7 +618,7 @@ test('native multiplier semantics keep single and family labels compact in both 
 
 test('actual project rows resolve children truthfully and stay within narrow/organized/free targets', () => {
   const program = { name: 'Pi', agent: true, shell: false };
-  const leader = { address: 't1', space: 's1', title: 'Agent title is not a project', status: 'blocked', program };
+  const leader = { address: 't1', space: 's1', title: 'A very long agent name that cannot fit in a narrow fish label', status: 'blocked', program };
   const raw = (address, parent, extra = {}) => ({ address, parent, state: 'live', status: 'blocked', program, ...extra });
   const data = { agents: [leader], spaces: [{ id: 's1', machine: null, name: 'Actual project' },
     { id: 'remote/s1', machine: 'remote', name: 'Remote project' }], terminals: [
