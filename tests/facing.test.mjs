@@ -162,19 +162,17 @@ const flatAgents = statuses => statuses.map((status, i) => ({
   address: `t${i}`, status, title: `T${i}`, program: { name: 'fixture', agent: true },
 }));
 
-test('free fish mount both facings while animating, one selected image when parked', () => {
+// Diagnostic intentionally replaces the previous dual-mount expectation.
+test('free fish mount only the selected facing while animating or parked', () => {
   const agents = flatAgents(['working', 'idle', 'blocked', 'done']);
-  // Animating (active window, not paused): both facings mounted, exactly one visible.
   for (const turning of [true, false]) {
     const f = renderFixture({ agents, turning });
     for (const a of agents) {
       const mine = posesFor(f.render(), f.view, a.address);
-      assert.equal(mine.length, 2, `turning=${turning}: two facing images mounted for ${a.address}`);
+      assert.equal(mine.length, 1, `turning=${turning}: one facing image for ${a.address}`);
       const face = f.view.motion.get(a.address).state.face;
-      const expected = ['right', 'left'].map(facing => `mods/aquarium/assets/${fishAsset(a, false, turning, a.address, true, facing)}`);
-      assert.deepEqual(mine.map(p => p.asset).sort(), expected.sort(), `turning=${turning}: both reviewed facings for ${a.address}`);
-      assert.equal(mine.filter(p => p.opacity === 1).length, 1, `turning=${turning}: one visible facing for ${a.address}`);
-      assert.equal(mine.find(p => p.opacity === 1).asset, `mods/aquarium/assets/${fishAsset(a, false, turning, a.address, true, face)}`,
+      assert.equal(mine[0].opacity, 1);
+      assert.equal(mine[0].asset, `mods/aquarium/assets/${fishAsset(a, false, turning, a.address, true, face)}`,
         `turning=${turning}: selected facing matches motion face for ${a.address}`);
     }
   }
@@ -193,7 +191,7 @@ test('free fish mount both facings while animating, one selected image when park
   }
 });
 
-test('selected facing follows motion reversals and fade phases with both facings mounted', () => {
+test('selected facing follows motion reversals and fade phases with one facing mounted', () => {
   const agents = flatAgents(['working']);
   const f = renderFixture({ agents });
   const entry = f.view.motion.get('t0');
@@ -204,9 +202,9 @@ test('selected facing follows motion reversals and fade phases with both facings
     entry.state = state;
     seen.add(state.face);
     const mine = posesFor(f.render(), f.view, 't0');
-    assert.equal(mine.length, 2, `phase ${state.phase}: both facings stay mounted across reversals`);
-    assert.equal(mine.filter(p => p.opacity === 1).length, 1, `phase ${state.phase}: exactly one selected facing`);
-    assert.equal(mine.find(p => p.opacity === 1).asset, `mods/aquarium/assets/${fishAsset(agents[0], false, true, 't0', true, state.face)}`,
+    assert.equal(mine.length, 1, `phase ${state.phase}: only the selected facing is mounted`);
+    assert.equal(mine[0].opacity, 1);
+    assert.equal(mine[0].asset, `mods/aquarium/assets/${fishAsset(agents[0], false, true, 't0', true, state.face)}`,
       `phase ${state.phase}: selected facing follows the motion face through fade-out/fade-in`);
   }
   assert.deepEqual([...seen].sort(), ['left', 'right'], 'reversals in both directions covered');
