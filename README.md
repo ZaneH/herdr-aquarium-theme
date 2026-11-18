@@ -4,11 +4,11 @@ Your coding agents, as a school of fish. Two native [Herdr GUI](https://herdr.de
 
 > **Release scope:** includes the waypoint-facing fix, compact native Options, seamless wave tiles, real child-agent discovery/navigation, and brighter native gallery. Motion remains opt-in and off on fresh installs. Moving-click comfort/crowded layouts ([#2](https://github.com/ZaneH/herdr-aquarium-theme/issues/2)) and performance/lifecycle/keyboard follow-ups ([#5](https://github.com/ZaneH/herdr-aquarium-theme/issues/5)) remain open; these are not claims of complete user acceptance.
 
-![Native Herdr aquarium workspace panel](preview.png)
+![Herdr Aquarium promotional banner](preview.png)
 
-*Fresh native workspace-panel capture with five real fish and Options closed. Agent names and both details-strip lines are privacy-blurred; native colors, fish positions, status text, and controls are retained without grading or reconstruction. The surround and headings are presentation, not app UI. The panel was temporarily 500 px tall for capture, then restored to its normal 320 px. This earlier capture predates label cleanup, the fish picker, attention transitions and the clownfish animation pilot.*
+*Original promotional illustration for the Herdr Gallery (issue #9): a sunlit lagoon with a clownfish family, Young Serif display type, and layered underwater planting. The fish are drawn for this poster, not enlarged runtime sprites; this is not a live capture or an exact depiction of the UI. The 1600 × 1000 image fits the 16:10 gallery card without cropping. Genuine sanitized native screenshots remain unchanged in `docs/` as evidence.*
 
-Regenerate from the pinned sanitized input with `uv run --with pillow==11.3.0 python tools/prepare-preview.py` (build-time only). See [gallery direction and provenance](docs/gallery-direction.md).
+Regenerate deterministically with `uv run --with pillow==11.3.0 python tools/prepare-preview.py` (Pillow is build-time only; fonts are bundled in `tools/fonts/` under the SIL Open Font License). See [gallery direction and provenance](docs/gallery-direction.md).
 
 ## Two modes
 
