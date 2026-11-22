@@ -8,7 +8,7 @@ import * as presentation from '../mods/aquarium/presentation.js';
 test('raw child peeks without suspension; mapped child retains immersive focus and Back', () => {
   const program = { key: 'pi', name: 'Pi', agent: true, shell: false };
   const parent = { address: 't1', title: 'Parent', status: 'blocked', program, focused: true };
-  const child = { address: 't2', parent: 't1', state: 'live', status: 'blocked', program, name: 'Real worker', cwd: '/tmp/child' };
+  const child = { address: 't2', pane: 'pane-t2', parent: 't1', state: 'live', status: 'blocked', program, name: 'Real worker', cwd: '/tmp/child' };
   let terminal = false;
   let focus = null;
   const listed = [parent];
@@ -54,13 +54,15 @@ test('raw child peeks without suspension; mapped child retains immersive focus a
   assert.equal(stops, 0);
   assert.notEqual(view.suspended, true);
 
-  // A host-mapped child still uses the unchanged immersive agent block path.
-  listed.push({ address: 't2', title: 'Real worker', status: 'blocked', program });
+  // A host-mapped child focuses its pane and keeps the immersive agent block path.
+  listed.push({ address: 't2', pane: 'pane-t2', title: 'Real worker', status: 'blocked', program });
   commands.length = 0;
-  fish.values.on_click();
+  nodes = [];
+  view.render({});
+  nodes.find(n => n.values.id === 'fish-t2').values.on_click();
   assert.equal(commands.length, 2);
-  assert.equal(commands[0].command, 'agent.focus');
-  assert.equal(commands[0].args.terminal, 't2');
+  assert.equal(commands[0].command, 'pane.focus');
+  assert.equal(commands[0].args.pane, 'pane-t2');
   assert.equal(commands[1].command, 'layout.select');
   assert.equal(commands[1].args.child, 'terminal-view');
   assert.equal(stops, 1);

@@ -178,7 +178,7 @@ test('actual render preserves all child hit targets, paused offsets and resize i
       assert.equal(typeof n.values.on_click, 'function');
       assert.ok(n.values.accessibility_label.includes('Open agent'));
       n.values.on_click();
-      assert.equal(commands.at(-1).command, 'agent.focus');
+      assert.equal(commands.at(-1).command, 'pane.focus');
       assert.equal(commands.at(-1).args.terminal, n.values.id.slice('fish-'.length));
     }
     assert.ok(nodes.find(n => n.values.id === 'school-scroll').values.overflow_scrollbar !== undefined);

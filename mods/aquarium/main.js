@@ -250,7 +250,8 @@ export default class Aquarium extends View {
         run("terminal.peek", { terminal: a.address });
         return;
       }
-      run("agent.focus", { terminal: a.address });
+      if (a.pane) run("pane.focus", { pane: a.pane });
+      else run("pane.focus", { terminal: a.address });
       if (immersive) {
         this.suspended = true;
         this.stopMotion();

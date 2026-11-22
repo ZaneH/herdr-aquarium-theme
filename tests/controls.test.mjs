@@ -159,7 +159,7 @@ test('actual tank descriptors use static assets and omit loops when suspended or
 
 test('fish hover callbacks ignore late exits from another fish and retain click/focus without label cards', () => {
   const agents = ['first', 'second'].map(address => ({
-    address, status: 'working', title: address, program: { name: 'Pi', agent: true },
+    address, pane: `pane-${address}`, status: 'working', title: address, program: { name: 'Pi', agent: true },
   }));
   const f = fixture(new Map([['aquarium.free', false]]), false, undefined, { agents });
   const nodes = f.render();
@@ -180,8 +180,31 @@ test('fish hover callbacks ignore late exits from another fish and retain click/
     assert.ok(fish.childNodes.slice(1).every(label => label.values.bg === undefined));
   }
   first.values.on_click();
-  assert.equal(f.commands[0][0], 'agent.focus');
-  assert.equal(f.commands[0][1].terminal, 'first');
+  assert.equal(f.commands[0][0], 'pane.focus');
+  assert.equal(f.commands[0][1].pane, 'pane-first');
+});
+
+test('fish open focuses each listed pane, even when titles match or differ only by case', () => {
+  const agents = [
+    { address: 'alpha', pane: 'pane-alpha', title: 'Worker' },
+    { address: 'beta', pane: 'pane-beta', title: 'Worker' },
+    { address: 'gamma', pane: 'pane-gamma', title: 'worker' },
+    { address: 'delta', pane: 'pane-delta', title: 'worker' },
+    { address: 'epsilon', title: 'Worker' },
+  ].map(agent => ({ ...agent, status: 'working', program: { name: 'Pi', agent: true } }));
+  const f = fixture(new Map([['aquarium.free', false]]), false, undefined, { agents });
+  const nodes = f.render();
+  for (const agent of agents) {
+    f.commands.length = 0;
+    nodes.get(`fish-${agent.address}`).values.on_click();
+    if (agent.pane) {
+      assert.equal(f.commands[0][0], 'pane.focus', agent.address);
+      assert.equal(f.commands[0][1].pane, agent.pane, agent.address);
+    } else {
+      assert.equal(f.commands[0][0], 'pane.focus', agent.address);
+      assert.equal(f.commands[0][1].terminal, agent.address, agent.address);
+    }
+  }
 });
 
 test('layout-switch callbacks suspend source then request target resume in order', async () => {
