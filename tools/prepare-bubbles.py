@@ -1,4 +1,4 @@
-"""Build the original bubble art: uv run --with pillow python tools/prepare-bubbles.py"""
+"""Build the original bubble art: uv run --with pillow==11.3.0 python tools/prepare-bubbles.py"""
 import math
 from pathlib import Path
 from PIL import Image, ImageDraw
@@ -12,7 +12,7 @@ def bubble_frame(t, phase):
     for i in range(8):
         progress = (t + i / 8 + phase) % 1
         x = 32 + 15 * math.sin(i * 2.1 + progress * math.tau)
-        y = 395 - progress * 420
+        y = 378 - progress * 372
         radius = 2 + i % 4
         alpha = round(105 * min(1, progress * 8, (1 - progress) * 8))
         draw.ellipse((x - radius, y - radius, x + radius, y + radius),
